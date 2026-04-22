@@ -97,7 +97,7 @@ export function StatsPanel({
               className={cn(
                 "rounded px-1.5 py-0.5 text-[9px]",
                 detectionSource === "remote"
-                  ? "bg-emerald-100 text-emerald-700"
+                  ? "bg-primary/10 text-primary"
                   : "bg-secondary text-muted-foreground",
               )}
             >
