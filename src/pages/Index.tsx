@@ -4,18 +4,19 @@ import { Button } from "@/components/ui/button";
 import { Toolbar } from "@/components/Toolbar";
 import { WaferCanvas } from "@/components/WaferCanvas";
 import { StatsPanel } from "@/components/StatsPanel";
+import { ModelSettings } from "@/components/ModelSettings";
 import { toast } from "@/hooks/use-toast";
 import {
   activeTileCount,
   countDefects,
   createEmptyMap,
-  detectClusters,
   downloadDataUrl,
   exportToPng,
   type DetectionResult,
   type Tool,
   type WaferMap,
 } from "@/lib/wafer";
+import { runDetection } from "@/lib/mlClient";
 
 const HISTORY_LIMIT = 50;
 
@@ -26,7 +27,10 @@ const Index = () => {
   const [showGrid, setShowGrid] = useState(true);
   const [showOverlay, setShowOverlay] = useState(true);
   const [detection, setDetection] = useState<DetectionResult | null>(null);
+  const [detectionSource, setDetectionSource] = useState<"remote" | "local" | null>(null);
   const [isDetecting, setIsDetecting] = useState(false);
+  // bump to re-render when model settings change
+  const [, setSettingsTick] = useState(0);
 
   const undoStack = useRef<WaferMap[]>([]);
   const redoStack = useRef<WaferMap[]>([]);
@@ -42,6 +46,7 @@ const Index = () => {
       return next;
     });
     setDetection(null);
+    setDetectionSource(null);
   }, []);
 
   const handleUndo = useCallback(() => {
@@ -52,6 +57,7 @@ const Index = () => {
       return prev;
     });
     setDetection(null);
+    setDetectionSource(null);
   }, []);
 
   const handleRedo = useCallback(() => {
@@ -62,6 +68,7 @@ const Index = () => {
       return next;
     });
     setDetection(null);
+    setDetectionSource(null);
   }, []);
 
   const handleClearAll = useCallback(() => {
@@ -79,18 +86,27 @@ const Index = () => {
       return;
     }
     setIsDetecting(true);
-    // Mock latency — keeps the lab feel + extension point for a real endpoint.
-    await new Promise((r) => setTimeout(r, 600 + Math.random() * 400));
-    const result = detectClusters(map);
-    setDetection(result);
-    setShowOverlay(true);
-    setIsDetecting(false);
-    toast({
-      title: "Analysis complete",
-      description: `${result.clusters.length} cluster${
-        result.clusters.length === 1 ? "" : "s"
-      } · ${result.defectPct.toFixed(2)}% defective`,
-    });
+    try {
+      const { result, source } = await runDetection(map);
+      setDetection(result);
+      setDetectionSource(source);
+      setShowOverlay(true);
+      toast({
+        title: source === "remote" ? "Model response received" : "Analysis complete (local)",
+        description: `${result.clusters.length} cluster${
+          result.clusters.length === 1 ? "" : "s"
+        } · ${result.defectPct.toFixed(2)}% defective`,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      toast({
+        title: "Detection failed",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsDetecting(false);
+    }
   }, [map]);
 
   const handleExport = useCallback(() => {
@@ -99,7 +115,6 @@ const Index = () => {
     downloadDataUrl(url, `wafer-map-${stamp}.png`);
   }, [map]);
 
-  // Keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -137,28 +152,28 @@ const Index = () => {
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
-      {/* Top bar */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card/50 px-4">
+      <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/15 text-primary">
+          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
             <Microscope className="h-4 w-4" />
           </div>
           <div>
-            <h1 className="font-mono-stat text-sm uppercase tracking-[0.18em] text-foreground">
-              Wafer Defect Studio
+            <h1 className="text-sm font-semibold text-foreground">
+              Silicon Wafer Defect Detector
             </h1>
-            <p className="font-mono-stat text-[10px] uppercase tracking-widest text-muted-foreground">
-              ML inspection · demo build
+            <p className="text-[11px] text-muted-foreground">
+              Course project · interactive ML inference demo
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
+          <ModelSettings onChange={() => setSettingsTick((t) => t + 1)} />
           <Button
             variant="ghost"
             size="sm"
             onClick={() => commit(createEmptyMap())}
-            className="font-mono-stat gap-2 text-xs uppercase tracking-widest text-muted-foreground"
+            className="gap-2 text-xs text-muted-foreground"
           >
             <RotateCcw className="h-3.5 w-3.5" /> Reset
           </Button>
@@ -166,7 +181,7 @@ const Index = () => {
             variant="outline"
             size="sm"
             onClick={handleExport}
-            className="font-mono-stat gap-2 text-xs uppercase tracking-widest"
+            className="gap-2 text-xs"
           >
             <Download className="h-3.5 w-3.5" /> Export PNG
           </Button>
@@ -174,7 +189,7 @@ const Index = () => {
             size="sm"
             onClick={handleDetect}
             disabled={isDetecting}
-            className="font-mono-stat gap-2 text-xs uppercase tracking-widest"
+            className="gap-2 text-xs"
           >
             {isDetecting ? (
               <Cpu className="h-3.5 w-3.5 animate-pulse" />
@@ -186,7 +201,6 @@ const Index = () => {
         </div>
       </header>
 
-      {/* Workspace */}
       <div className="flex flex-1 overflow-hidden">
         <Toolbar
           tool={tool}
@@ -200,14 +214,15 @@ const Index = () => {
           canRedo={redoStack.current.length > 0}
         />
 
-        <main className="relative flex flex-1 items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_center,hsl(220_22%_10%),hsl(220_25%_6%))] p-6">
-          {/* Grid background lines */}
+        <main className="relative flex flex-1 items-center justify-center overflow-hidden bg-background p-6">
           <div
-            className="pointer-events-none absolute inset-0 opacity-[0.06]"
+            className="pointer-events-none absolute inset-0 opacity-[0.5]"
             style={{
               backgroundImage:
-                "linear-gradient(hsl(186 95% 55%) 1px, transparent 1px), linear-gradient(90deg, hsl(186 95% 55%) 1px, transparent 1px)",
-              backgroundSize: "40px 40px",
+                "linear-gradient(hsl(var(--border)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--border)) 1px, transparent 1px)",
+              backgroundSize: "48px 48px",
+              maskImage:
+                "radial-gradient(ellipse at center, black 40%, transparent 75%)",
             }}
           />
           <WaferCanvas
@@ -223,6 +238,7 @@ const Index = () => {
 
         <StatsPanel
           detection={detection}
+          detectionSource={detectionSource}
           isDetecting={isDetecting}
           showOverlay={showOverlay}
           showGrid={showGrid}
