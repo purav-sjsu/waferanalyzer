@@ -2,82 +2,85 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Silicon Wafer Lab — design system
-   Dark technical aesthetic. All colors HSL.
+/* Wafer Defect Studio — academic project theme
+   Clean light UI, restrained palette, neutral typography.
+   All colors HSL.
 */
 
 @layer base {
   :root {
-    /* Workspace (dark lab) */
-    --background: 220 25% 7%;
-    --foreground: 210 30% 96%;
+    /* Paper-like workspace */
+    --background: 210 20% 98%;
+    --foreground: 222 25% 14%;
 
-    --card: 220 22% 10%;
-    --card-foreground: 210 30% 96%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 25% 14%;
 
-    --popover: 220 22% 10%;
-    --popover-foreground: 210 30% 96%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 25% 14%;
 
-    /* Primary = bright cyan accent */
-    --primary: 186 95% 55%;
-    --primary-foreground: 220 30% 8%;
+    /* Primary = academic indigo */
+    --primary: 224 60% 42%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 18% 16%;
-    --secondary-foreground: 210 30% 96%;
+    --secondary: 215 20% 94%;
+    --secondary-foreground: 222 25% 18%;
 
-    --muted: 220 18% 14%;
-    --muted-foreground: 215 15% 62%;
+    --muted: 215 20% 94%;
+    --muted-foreground: 220 10% 42%;
 
-    --accent: 280 90% 65%;
-    --accent-foreground: 220 30% 8%;
+    /* Accent = warm amber for highlights */
+    --accent: 28 85% 50%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 75% 58%;
-    --destructive-foreground: 210 30% 98%;
+    --destructive: 0 70% 48%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 220 18% 18%;
-    --input: 220 18% 18%;
-    --ring: 186 95% 55%;
+    --border: 220 14% 88%;
+    --input: 220 14% 88%;
+    --ring: 224 60% 42%;
 
-    --radius: 0.5rem;
+    --radius: 0.375rem;
 
     /* Wafer-specific tokens */
-    --wafer-surface: 0 0% 4%;          /* canvas black background */
-    --wafer-defect: 0 0% 100%;         /* painted defect tiles */
-    --wafer-grid: 0 0% 18%;            /* subtle grid lines */
-    --wafer-ring: 186 95% 55%;         /* outer wafer ring */
-    --detect-cyan: 186 95% 55%;
-    --detect-magenta: 320 95% 65%;
+    --wafer-surface: 220 18% 96%;       /* canvas background — light paper */
+    --wafer-disc: 220 12% 90%;          /* clean wafer surface */
+    --wafer-defect: 222 30% 18%;        /* dark ink for defect tiles */
+    --wafer-grid: 220 14% 78%;          /* grid lines */
+    --wafer-ring: 222 25% 28%;          /* outer wafer ring */
+    --detect-primary: 224 70% 48%;      /* indigo bbox */
+    --detect-warning: 0 70% 50%;        /* red bbox for scratches/edges */
 
-    --sidebar-background: 220 25% 9%;
-    --sidebar-foreground: 210 25% 90%;
-    --sidebar-primary: 186 95% 55%;
-    --sidebar-primary-foreground: 220 30% 8%;
-    --sidebar-accent: 220 18% 14%;
-    --sidebar-accent-foreground: 210 30% 96%;
-    --sidebar-border: 220 18% 16%;
-    --sidebar-ring: 186 95% 55%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 222 25% 14%;
+    --sidebar-primary: 224 60% 42%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 215 20% 94%;
+    --sidebar-accent-foreground: 222 25% 18%;
+    --sidebar-border: 220 14% 88%;
+    --sidebar-ring: 224 60% 42%;
   }
 
   .dark {
-    --background: 220 25% 7%;
-    --foreground: 210 30% 96%;
-    --card: 220 22% 10%;
-    --card-foreground: 210 30% 96%;
-    --popover: 220 22% 10%;
-    --popover-foreground: 210 30% 96%;
-    --primary: 186 95% 55%;
-    --primary-foreground: 220 30% 8%;
-    --secondary: 220 18% 16%;
-    --secondary-foreground: 210 30% 96%;
-    --muted: 220 18% 14%;
-    --muted-foreground: 215 15% 62%;
-    --accent: 280 90% 65%;
-    --accent-foreground: 220 30% 8%;
-    --destructive: 0 75% 58%;
-    --destructive-foreground: 210 30% 98%;
-    --border: 220 18% 18%;
-    --input: 220 18% 18%;
-    --ring: 186 95% 55%;
+    --background: 222 20% 12%;
+    --foreground: 210 20% 96%;
+    --card: 222 18% 16%;
+    --card-foreground: 210 20% 96%;
+    --popover: 222 18% 16%;
+    --popover-foreground: 210 20% 96%;
+    --primary: 224 70% 65%;
+    --primary-foreground: 222 25% 12%;
+    --secondary: 222 14% 22%;
+    --secondary-foreground: 210 20% 96%;
+    --muted: 222 14% 20%;
+    --muted-foreground: 220 10% 70%;
+    --accent: 28 85% 60%;
+    --accent-foreground: 222 25% 12%;
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 210 20% 96%;
+    --border: 222 14% 24%;
+    --input: 222 14% 24%;
+    --ring: 224 70% 65%;
   }
 }
 
@@ -92,7 +95,8 @@
 
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "ss01", "cv11";
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, sans-serif;
   }
 }
 
@@ -100,7 +104,6 @@
   .font-mono-stat {
     font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
     font-variant-numeric: tabular-nums;
-    letter-spacing: 0.02em;
   }
   .pixelated {
     image-rendering: pixelated;

@@ -25,7 +25,18 @@ interface Props {
   onCommit: (next: WaferMap) => void;
 }
 
-const TILE_PX = 11; // base tile size; canvas scales via CSS to fit
+const TILE_PX = 11;
+
+// Theme colors for the canvas (academic light theme).
+const COLOR_WORKSPACE = "hsl(220 18% 96%)";
+const COLOR_DISC = "hsl(220 12% 92%)";
+const COLOR_DEFECT = "hsl(222 30% 18%)";
+const COLOR_GRID = "rgba(15, 23, 42, 0.08)";
+const COLOR_RING = "hsl(222 25% 28%)";
+const COLOR_PRIMARY = "hsl(224 70% 48%)";
+const COLOR_PRIMARY_SOFT = "hsla(224, 70%, 48%, 0.14)";
+const COLOR_WARN = "hsl(0 72% 50%)";
+const COLOR_WARN_SOFT = "hsla(0, 72%, 50%, 0.14)";
 
 export function WaferCanvas({
   map,
@@ -63,22 +74,19 @@ export function WaferCanvas({
     canvas.width = size;
     canvas.height = size;
 
-    // Workspace background outside wafer
-    ctx.fillStyle = "hsl(220 25% 7%)";
+    ctx.fillStyle = COLOR_WORKSPACE;
     ctx.fillRect(0, 0, size, size);
 
-    // Wafer disc background
     ctx.save();
     ctx.beginPath();
     ctx.arc(size / 2, size / 2, size / 2 - 2, 0, Math.PI * 2);
     ctx.closePath();
     ctx.clip();
 
-    ctx.fillStyle = "#000000";
+    ctx.fillStyle = COLOR_DISC;
     ctx.fillRect(0, 0, size, size);
 
-    // Defects
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = COLOR_DEFECT;
     for (let y = 0; y < GRID_SIZE; y++) {
       for (let x = 0; x < GRID_SIZE; x++) {
         if (!isInside(x, y)) continue;
@@ -88,9 +96,8 @@ export function WaferCanvas({
       }
     }
 
-    // Subtle grid
     if (showGrid) {
-      ctx.strokeStyle = "rgba(255,255,255,0.07)";
+      ctx.strokeStyle = COLOR_GRID;
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let i = 0; i <= GRID_SIZE; i++) {
@@ -105,16 +112,15 @@ export function WaferCanvas({
 
     ctx.restore();
 
-    // Wafer ring
-    ctx.strokeStyle = "hsl(186 95% 55% / 0.85)";
+    ctx.strokeStyle = COLOR_RING;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(size / 2, size / 2, size / 2 - 2, 0, Math.PI * 2);
     ctx.stroke();
 
     // Notch (orientation marker at bottom)
-    ctx.fillStyle = "hsl(220 25% 7%)";
-    ctx.strokeStyle = "hsl(186 95% 55% / 0.85)";
+    ctx.fillStyle = COLOR_WORKSPACE;
+    ctx.strokeStyle = COLOR_RING;
     ctx.lineWidth = 2;
     ctx.beginPath();
     const notchR = TILE_PX * 1.2;
@@ -135,14 +141,8 @@ export function WaferCanvas({
     if (!detection || !showOverlay) return;
 
     for (const c of detection.clusters) {
-      const stroke =
-        c.color === "magenta"
-          ? "hsl(320 95% 65%)"
-          : "hsl(186 95% 55%)";
-      const fill =
-        c.color === "magenta"
-          ? "hsla(320, 95%, 65%, 0.18)"
-          : "hsla(186, 95%, 55%, 0.18)";
+      const stroke = c.color === "magenta" ? COLOR_WARN : COLOR_PRIMARY;
+      const fill = c.color === "magenta" ? COLOR_WARN_SOFT : COLOR_PRIMARY_SOFT;
       const x = c.x * TILE_PX;
       const y = c.y * TILE_PX;
       const w = c.w * TILE_PX;
@@ -155,14 +155,13 @@ export function WaferCanvas({
       ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
       ctx.setLineDash([]);
 
-      // Label
       const label = `${c.kind} ${(c.confidence * 100).toFixed(0)}%`;
       ctx.font = "10px ui-monospace, Menlo, monospace";
       const tw = ctx.measureText(label).width + 6;
       const th = 13;
       const lx = Math.min(size - tw - 2, Math.max(2, x));
       const ly = Math.max(0, y - th - 2);
-      ctx.fillStyle = "hsla(220, 25%, 7%, 0.85)";
+      ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
       ctx.fillRect(lx, ly, tw, th);
       ctx.strokeStyle = stroke;
       ctx.lineWidth = 1;
@@ -186,8 +185,8 @@ export function WaferCanvas({
     const drag = dragStateRef.current;
     const isDragShape = drag && (tool === "line" || tool === "rect" || tool === "circle");
 
-    ctx.strokeStyle = "hsl(186 95% 55%)";
-    ctx.fillStyle = "hsla(186, 95%, 55%, 0.18)";
+    ctx.strokeStyle = COLOR_PRIMARY;
+    ctx.fillStyle = COLOR_PRIMARY_SOFT;
     ctx.lineWidth = 1;
 
     if (isDragShape) {
@@ -216,15 +215,13 @@ export function WaferCanvas({
         ctx.moveTo((x0 + 0.5) * TILE_PX, (y0 + 0.5) * TILE_PX);
         ctx.lineTo((x1 + 0.5) * TILE_PX, (y1 + 0.5) * TILE_PX);
         ctx.lineWidth = Math.max(1, brushSize) * (TILE_PX / 2);
-        ctx.strokeStyle = "hsla(186, 95%, 55%, 0.5)";
+        ctx.strokeStyle = COLOR_PRIMARY_SOFT;
         ctx.stroke();
       }
       return;
     }
 
-    // Brush footprint
-    const sz =
-      tool === "pencil" || tool === "fill" ? 1 : brushSize;
+    const sz = tool === "pencil" || tool === "fill" ? 1 : brushSize;
     const wh = sz * TILE_PX;
     ctx.beginPath();
     if (sz <= 1) {
@@ -242,7 +239,6 @@ export function WaferCanvas({
     ctx.stroke();
   }, [hover, tool, brushSize]);
 
-  // Pointer logic
   const eventToCell = (e: React.PointerEvent) => {
     const canvas = canvasRef.current!;
     const rect = canvas.getBoundingClientRect();
@@ -305,7 +301,6 @@ export function WaferCanvas({
       const value: 0 | 1 = drag.button === 2 || tool === "eraser" ? 0 : 1;
 
       if (tool === "line" || tool === "rect" || tool === "circle") {
-        // Preview from original map
         const preview = new Uint8Array(map);
         if (tool === "line")
           paintLine(preview, drag.startX, drag.startY, x, y, brushSize, value);
@@ -357,14 +352,11 @@ export function WaferCanvas({
   }, []);
 
   return (
-    <div className="relative aspect-square w-full max-w-[min(78vh,900px)] select-none">
-      {/* outer subtle bezel */}
-      <div className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_center,hsl(220_22%_12%),hsl(220_25%_6%))] shadow-[0_30px_120px_-20px_hsl(186_95%_55%/0.15)]" />
+    <div className="relative aspect-square w-full max-w-[min(78vh,820px)] select-none">
+      <div className="absolute inset-0 rounded-full bg-card shadow-[0_8px_30px_-12px_rgba(15,23,42,0.18)] ring-1 ring-border" />
       <canvas
         ref={canvasRef}
-        className={cn(
-          "pixelated absolute inset-0 h-full w-full rounded-full",
-        )}
+        className={cn("pixelated absolute inset-0 h-full w-full rounded-full")}
         onContextMenu={(e) => e.preventDefault()}
       />
       <canvas
@@ -381,8 +373,7 @@ export function WaferCanvas({
         onPointerLeave={onPointerLeave}
         onContextMenu={(e) => e.preventDefault()}
       />
-      {/* corner readout */}
-      <div className="font-mono-stat pointer-events-none absolute bottom-3 left-3 rounded-md border border-border/60 bg-background/70 px-2 py-1 text-[10px] uppercase tracking-widest text-muted-foreground backdrop-blur">
+      <div className="font-mono-stat pointer-events-none absolute bottom-3 left-3 rounded border border-border bg-card/90 px-2 py-1 text-[10px] text-muted-foreground backdrop-blur">
         {hover ? (
           <>
             x:{String(hover.x).padStart(2, "0")} · y:{String(hover.y).padStart(2, "0")}
@@ -391,7 +382,7 @@ export function WaferCanvas({
           <>idle</>
         )}
       </div>
-      <div className="font-mono-stat pointer-events-none absolute bottom-3 right-3 rounded-md border border-border/60 bg-background/70 px-2 py-1 text-[10px] uppercase tracking-widest text-primary backdrop-blur">
+      <div className="font-mono-stat pointer-events-none absolute bottom-3 right-3 rounded border border-border bg-card/90 px-2 py-1 text-[10px] text-foreground backdrop-blur">
         {GRID_SIZE}×{GRID_SIZE}
       </div>
     </div>
