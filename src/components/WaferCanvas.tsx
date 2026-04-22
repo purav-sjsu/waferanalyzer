@@ -224,16 +224,7 @@ export function WaferCanvas({
 
     // Brush footprint
     const sz =
-      tool === "pencil" || tool === "fill" || tool === "eraser"
-        ? tool === "brush"
-          ? brushSize
-          : tool === "eraser"
-            ? brushSize
-            : 1
-        : brushSize;
-    const radius = (sz - 1) / 2;
-    const x = (hover.x - radius) * TILE_PX;
-    const y = (hover.y - radius) * TILE_PX;
+      tool === "pencil" || tool === "fill" ? 1 : brushSize;
     const wh = sz * TILE_PX;
     ctx.beginPath();
     if (sz <= 1) {
