@@ -159,7 +159,7 @@ export function WaferCanvas({
     ctx.arc(size / 2, size - 2, notchR, Math.PI, 0, true);
     ctx.fill();
     ctx.stroke();
-  }, [renderMap, showGrid]);
+  }, [renderMap, showGrid, isDark]);
 
   // Detection overlay
   useEffect(() => {
@@ -201,7 +201,7 @@ export function WaferCanvas({
       ctx.fillStyle = stroke;
       ctx.fillText(label, lx + 3, ly + 9.5);
     }
-  }, [detection, showOverlay]);
+  }, [detection, showOverlay, isDark]);
 
   // Cursor / brush preview
   useEffect(() => {
@@ -269,7 +269,7 @@ export function WaferCanvas({
     }
     ctx.fill();
     ctx.stroke();
-  }, [hover, tool, brushSize]);
+  }, [hover, tool, brushSize, isDark]);
 
   const eventToCell = (e: React.PointerEvent) => {
     const canvas = canvasRef.current!;
