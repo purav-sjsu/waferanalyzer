@@ -127,27 +127,70 @@ export function StatsPanel({
         )}
 
         {detection && !isDetecting && (
-          <div className="grid grid-cols-2 gap-2">
-            <Stat
-              label="Clusters"
-              value={String(detection.clusters.length)}
-              tone="primary"
-            />
-            <Stat
-              label="Confidence"
-              value={`${(detection.modelConfidence * 100).toFixed(1)}%`}
-              tone="primary"
-            />
-            <Stat
-              label="Yield est."
-              value={`${detection.yieldPct.toFixed(1)}%`}
-              tone={detection.yieldPct < 70 ? "warn" : "default"}
-            />
-            <Stat
-              label="Inference"
-              value={`${detection.inferenceMs.toFixed(0)} ms`}
-              sub={detectionSource === "remote" ? "remote model" : "local model"}
-            />
+          <>
+            {detection.predictedClass && (
+              <div className="mb-2 rounded-md border border-primary/40 bg-primary/5 p-3">
+                <div className="font-mono-stat text-[9px] uppercase tracking-wider text-muted-foreground">
+                  Predicted pattern
+                </div>
+                <div className="mt-1 flex items-baseline justify-between gap-2">
+                  <span className="font-mono-stat text-lg font-semibold text-primary">
+                    {detection.predictedClass}
+                  </span>
+                  <span className="font-mono-stat text-xs tabular-nums text-muted-foreground">
+                    {(detection.modelConfidence * 100).toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-2">
+              <Stat
+                label="Clusters"
+                value={String(detection.clusters.length)}
+                tone="primary"
+              />
+              <Stat
+                label="Confidence"
+                value={`${(detection.modelConfidence * 100).toFixed(1)}%`}
+                tone="primary"
+              />
+              <Stat
+                label="Yield est."
+                value={`${detection.yieldPct.toFixed(1)}%`}
+                tone={detection.yieldPct < 70 ? "warn" : "default"}
+              />
+              <Stat
+                label="Inference"
+                value={`${detection.inferenceMs.toFixed(0)} ms`}
+                sub={detectionSource ? SOURCE_LABEL[detectionSource] : undefined}
+              />
+            </div>
+          </>
+        )}
+
+        {detection && detection.classScores && detection.classScores.length > 0 && (
+          <div className="mt-3 rounded-md border border-border p-2">
+            <div className="font-mono-stat mb-1.5 text-[9px] uppercase tracking-wider text-muted-foreground">
+              Class probabilities
+            </div>
+            <div className="space-y-1">
+              {detection.classScores.slice(0, 5).map((s) => (
+                <div key={s.label} className="flex items-center gap-2">
+                  <span className="font-mono-stat w-20 shrink-0 text-[10px] text-foreground">
+                    {s.label}
+                  </span>
+                  <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="absolute inset-y-0 left-0 bg-primary"
+                      style={{ width: `${s.score * 100}%` }}
+                    />
+                  </div>
+                  <span className="font-mono-stat w-10 shrink-0 text-right text-[10px] tabular-nums text-muted-foreground">
+                    {(s.score * 100).toFixed(1)}%
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
