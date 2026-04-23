@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Cpu, Microscope, Play, RotateCcw } from "lucide-react";
+import { Cpu, Microscope, Moon, Play, RotateCcw, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Toolbar } from "@/components/Toolbar";
 import { WaferCanvas } from "@/components/WaferCanvas";
@@ -30,6 +30,10 @@ const Index = () => {
   const [detection, setDetection] = useState<DetectionResult | null>(null);
   const [detectionSource, setDetectionSource] = useState<MlSource | null>(null);
   const [isDetecting, setIsDetecting] = useState(false);
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return document.documentElement.classList.contains("dark");
+  });
   // bump to re-render when model settings change
   const [, setSettingsTick] = useState(0);
 
@@ -128,6 +132,14 @@ const Index = () => {
   }, []);
 
   useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, [isDark]);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
@@ -180,6 +192,15 @@ const Index = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsDark((d) => !d)}
+            className="h-8 w-8 text-muted-foreground"
+            aria-label="Toggle dark mode"
+          >
+            {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </Button>
           <ModelSettings onChange={() => setSettingsTick((t) => t + 1)} />
           <Button
             variant="ghost"
@@ -236,6 +257,7 @@ const Index = () => {
             showGrid={showGrid}
             detection={detection}
             showOverlay={showOverlay}
+            isDark={isDark}
             onCommit={commit}
           />
         </main>

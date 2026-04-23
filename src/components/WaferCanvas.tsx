@@ -22,22 +22,40 @@ interface Props {
   showGrid: boolean;
   detection: DetectionResult | null;
   showOverlay: boolean;
+  isDark?: boolean;
   onCommit: (next: WaferMap) => void;
 }
 
 const TILE_PX = 11;
 
-// Theme colors for the canvas (academic light theme).
-const COLOR_WORKSPACE = "hsl(220 18% 96%)";
-const COLOR_DISC = "hsl(220 12% 92%)";
-const COLOR_DEFECT = "hsl(222 30% 18%)";
-const COLOR_GRID = "rgba(15, 23, 42, 0.08)";
-const COLOR_RING = "hsl(222 25% 28%)";
-const COLOR_PRIMARY = "hsl(224 70% 48%)";
-const COLOR_PRIMARY_SOFT = "hsla(224, 70%, 48%, 0.14)";
-const COLOR_WARN = "hsl(0 72% 50%)";
-const COLOR_WARN_SOFT = "hsla(0, 72%, 50%, 0.14)";
-
+function getColors(isDark: boolean) {
+  if (isDark) {
+    return {
+      workspace: "hsl(222 20% 12%)",
+      disc: "hsl(222 18% 18%)",
+      defect: "hsl(224 70% 65%)",
+      grid: "rgba(210, 20%, 96%, 0.08)",
+      ring: "hsl(224 60% 50%)",
+      primary: "hsl(224 70% 65%)",
+      primarySoft: "hsla(224, 70%, 65%, 0.14)",
+      warn: "hsl(0 70% 60%)",
+      warnSoft: "hsla(0, 70%, 60%, 0.14)",
+      labelBg: "hsla(222, 18%, 16%, 0.95)",
+    };
+  }
+  return {
+    workspace: "hsl(220 18% 96%)",
+    disc: "hsl(220 12% 92%)",
+    defect: "hsl(222 30% 18%)",
+    grid: "rgba(15, 23, 42, 0.08)",
+    ring: "hsl(222 25% 28%)",
+    primary: "hsl(224 70% 48%)",
+    primarySoft: "hsla(224, 70%, 48%, 0.14)",
+    warn: "hsl(0 72% 50%)",
+    warnSoft: "hsla(0, 72%, 50%, 0.14)",
+    labelBg: "rgba(255, 255, 255, 0.95)",
+  };
+}
 export function WaferCanvas({
   map,
   tool,
@@ -45,6 +63,7 @@ export function WaferCanvas({
   showGrid,
   detection,
   showOverlay,
+  isDark = false,
   onCommit,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -63,6 +82,19 @@ export function WaferCanvas({
 
   const renderMap = draftMap ?? map;
 
+  const {
+    workspace: C_WORKSPACE,
+    disc: C_DISC,
+    defect: C_DEFECT,
+    grid: C_GRID,
+    ring: C_RING,
+    primary: C_PRIMARY,
+    primarySoft: C_PRIMARY_SOFT,
+    warn: C_WARN,
+    warnSoft: C_WARN_SOFT,
+    labelBg: C_LABEL_BG,
+  } = getColors(isDark);
+
   // Draw wafer map
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -74,7 +106,7 @@ export function WaferCanvas({
     canvas.width = size;
     canvas.height = size;
 
-    ctx.fillStyle = COLOR_WORKSPACE;
+    ctx.fillStyle = C_WORKSPACE;
     ctx.fillRect(0, 0, size, size);
 
     ctx.save();
@@ -83,10 +115,10 @@ export function WaferCanvas({
     ctx.closePath();
     ctx.clip();
 
-    ctx.fillStyle = COLOR_DISC;
+    ctx.fillStyle = C_DISC;
     ctx.fillRect(0, 0, size, size);
 
-    ctx.fillStyle = COLOR_DEFECT;
+    ctx.fillStyle = C_DEFECT;
     for (let y = 0; y < GRID_SIZE; y++) {
       for (let x = 0; x < GRID_SIZE; x++) {
         if (!isInside(x, y)) continue;
@@ -97,7 +129,7 @@ export function WaferCanvas({
     }
 
     if (showGrid) {
-      ctx.strokeStyle = COLOR_GRID;
+      ctx.strokeStyle = C_GRID;
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let i = 0; i <= GRID_SIZE; i++) {
@@ -112,22 +144,22 @@ export function WaferCanvas({
 
     ctx.restore();
 
-    ctx.strokeStyle = COLOR_RING;
+    ctx.strokeStyle = C_RING;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(size / 2, size / 2, size / 2 - 2, 0, Math.PI * 2);
     ctx.stroke();
 
     // Notch (orientation marker at bottom)
-    ctx.fillStyle = COLOR_WORKSPACE;
-    ctx.strokeStyle = COLOR_RING;
+    ctx.fillStyle = C_WORKSPACE;
+    ctx.strokeStyle = C_RING;
     ctx.lineWidth = 2;
     ctx.beginPath();
     const notchR = TILE_PX * 1.2;
     ctx.arc(size / 2, size - 2, notchR, Math.PI, 0, true);
     ctx.fill();
     ctx.stroke();
-  }, [renderMap, showGrid]);
+  }, [renderMap, showGrid, isDark]);
 
   // Detection overlay
   useEffect(() => {
@@ -141,8 +173,8 @@ export function WaferCanvas({
     if (!detection || !showOverlay) return;
 
     for (const c of detection.clusters) {
-      const stroke = c.color === "magenta" ? COLOR_WARN : COLOR_PRIMARY;
-      const fill = c.color === "magenta" ? COLOR_WARN_SOFT : COLOR_PRIMARY_SOFT;
+      const stroke = c.color === "magenta" ? C_WARN : C_PRIMARY;
+      const fill = c.color === "magenta" ? C_WARN_SOFT : C_PRIMARY_SOFT;
       const x = c.x * TILE_PX;
       const y = c.y * TILE_PX;
       const w = c.w * TILE_PX;
@@ -161,7 +193,7 @@ export function WaferCanvas({
       const th = 13;
       const lx = Math.min(size - tw - 2, Math.max(2, x));
       const ly = Math.max(0, y - th - 2);
-      ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+      ctx.fillStyle = C_LABEL_BG;
       ctx.fillRect(lx, ly, tw, th);
       ctx.strokeStyle = stroke;
       ctx.lineWidth = 1;
@@ -169,7 +201,7 @@ export function WaferCanvas({
       ctx.fillStyle = stroke;
       ctx.fillText(label, lx + 3, ly + 9.5);
     }
-  }, [detection, showOverlay]);
+  }, [detection, showOverlay, isDark]);
 
   // Cursor / brush preview
   useEffect(() => {
@@ -185,8 +217,8 @@ export function WaferCanvas({
     const drag = dragStateRef.current;
     const isDragShape = drag && (tool === "line" || tool === "rect" || tool === "circle");
 
-    ctx.strokeStyle = COLOR_PRIMARY;
-    ctx.fillStyle = COLOR_PRIMARY_SOFT;
+    ctx.strokeStyle = C_PRIMARY;
+    ctx.fillStyle = C_PRIMARY_SOFT;
     ctx.lineWidth = 1;
 
     if (isDragShape) {
@@ -215,7 +247,7 @@ export function WaferCanvas({
         ctx.moveTo((x0 + 0.5) * TILE_PX, (y0 + 0.5) * TILE_PX);
         ctx.lineTo((x1 + 0.5) * TILE_PX, (y1 + 0.5) * TILE_PX);
         ctx.lineWidth = Math.max(1, brushSize) * (TILE_PX / 2);
-        ctx.strokeStyle = COLOR_PRIMARY_SOFT;
+        ctx.strokeStyle = C_PRIMARY_SOFT;
         ctx.stroke();
       }
       return;
@@ -237,7 +269,7 @@ export function WaferCanvas({
     }
     ctx.fill();
     ctx.stroke();
-  }, [hover, tool, brushSize]);
+  }, [hover, tool, brushSize, isDark]);
 
   const eventToCell = (e: React.PointerEvent) => {
     const canvas = canvasRef.current!;
