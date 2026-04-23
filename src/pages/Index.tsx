@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Cpu, Download, Microscope, Play, RotateCcw } from "lucide-react";
+import { Cpu, Microscope, Play, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Toolbar } from "@/components/Toolbar";
 import { WaferCanvas } from "@/components/WaferCanvas";
@@ -164,9 +164,9 @@ const Index = () => {
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-4">
+      <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-gradient-to-r from-card via-primary/5 to-accent/10 px-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-gradient-to-br from-primary to-accent text-primary-foreground shadow-sm">
             <Microscope className="h-4 w-4" />
           </div>
           <div>
@@ -188,14 +188,6 @@ const Index = () => {
             className="gap-2 text-xs text-muted-foreground"
           >
             <RotateCcw className="h-3.5 w-3.5" /> Reset
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExport}
-            className="gap-2 text-xs"
-          >
-            <Download className="h-3.5 w-3.5" /> Export PNG
           </Button>
           <Button
             size="sm"
