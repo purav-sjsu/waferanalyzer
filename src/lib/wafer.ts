@@ -26,6 +26,11 @@ export interface DetectedCluster {
   color: "cyan" | "magenta";
 }
 
+export interface ClassScore {
+  label: string;
+  score: number;
+}
+
 export interface DetectionResult {
   clusters: DetectedCluster[];
   defectiveTiles: number;
@@ -34,6 +39,10 @@ export interface DetectionResult {
   modelConfidence: number;
   inferenceMs: number;
   yieldPct: number;
+  // Whole-wafer classification (from the CNN model). Optional so the
+  // heuristic fallback can omit it.
+  predictedClass?: string;
+  classScores?: ClassScore[];
 }
 
 export function createEmptyMap(): WaferMap {
@@ -209,8 +218,9 @@ export function floodFill(
   }
 }
 
-// Mock ML detection --------------------------------------------------------
-// Connected-components labeling on defect tiles, then classified heuristically.
+// Local heuristic detection ------------------------------------------------
+// Connected-components labeling on defect tiles, classified heuristically.
+// Used as a fallback when the ONNX model is unavailable.
 
 export function detectClusters(map: WaferMap): DetectionResult {
   const start = performance.now();
@@ -226,7 +236,6 @@ export function detectClusters(map: WaferMap): DetectionResult {
       const i = idx(x, y);
       if (!map[i] || labels[i] !== 0) continue;
       nextLabel++;
-      // BFS
       let minX = x,
         maxX = x,
         minY = y,
@@ -260,7 +269,6 @@ export function detectClusters(map: WaferMap): DetectionResult {
       else if (aspect >= 4 && density < 0.6) kind = "scratch";
       else if (edgeTouches > size * 0.3) kind = "edge";
 
-      // Confidence — heuristic, deterministic-ish from size & density.
       const baseConf =
         kind === "particle"
           ? 0.62 + Math.min(0.18, size * 0.04)
@@ -288,17 +296,12 @@ export function detectClusters(map: WaferMap): DetectionResult {
     clusters.length === 0
       ? 0.99
       : clusters.reduce((s, c) => s + c.confidence, 0) / clusters.length;
-  // simulate inference latency: real compute + a bit of jitter
   const realMs = performance.now() - start;
   const inferenceMs = Math.max(realMs, 240 + Math.random() * 380);
 
-  // crude yield estimate: penalize defective area, penalize cluster count
   const yieldPct = Math.max(
     0,
-    Math.min(
-      100,
-      100 - defectPct * 4 - clusters.length * 0.4,
-    ),
+    Math.min(100, 100 - defectPct * 4 - clusters.length * 0.4),
   );
 
   return {
@@ -312,6 +315,70 @@ export function detectClusters(map: WaferMap): DetectionResult {
   };
 }
 
+// Connected-components labeling — exported so the ONNX classifier can attach
+// localized cluster overlays to its whole-wafer prediction.
+export function labelConnectedComponents(map: WaferMap): DetectedCluster[] {
+  const labels = new Int32Array(map.length);
+  let nextLabel = 0;
+  const clusters: DetectedCluster[] = [];
+  const cx = (GRID_SIZE - 1) / 2;
+  const cy = (GRID_SIZE - 1) / 2;
+  const wr = GRID_SIZE / 2 - 0.5;
+
+  for (let y = 0; y < GRID_SIZE; y++) {
+    for (let x = 0; x < GRID_SIZE; x++) {
+      const i = idx(x, y);
+      if (!map[i] || labels[i] !== 0) continue;
+      nextLabel++;
+      let minX = x,
+        maxX = x,
+        minY = y,
+        maxY = y,
+        size = 0;
+      let edgeTouches = 0;
+      const stack: number[] = [x, y];
+      while (stack.length) {
+        const yy = stack.pop()!;
+        const xx = stack.pop()!;
+        if (xx < 0 || yy < 0 || xx >= GRID_SIZE || yy >= GRID_SIZE) continue;
+        const ii = idx(xx, yy);
+        if (!map[ii] || labels[ii] !== 0) continue;
+        labels[ii] = nextLabel;
+        size++;
+        if (xx < minX) minX = xx;
+        if (xx > maxX) maxX = xx;
+        if (yy < minY) minY = yy;
+        if (yy > maxY) maxY = yy;
+        const ddx = xx - cx;
+        const ddy = yy - cy;
+        if (Math.sqrt(ddx * ddx + ddy * ddy) > wr - 2) edgeTouches++;
+        stack.push(xx + 1, yy, xx - 1, yy, xx, yy + 1, xx, yy - 1);
+      }
+      const w = maxX - minX + 1;
+      const h = maxY - minY + 1;
+      const aspect = Math.max(w, h) / Math.max(1, Math.min(w, h));
+      const density = size / (w * h);
+      let kind: DetectedCluster["kind"] = "cluster";
+      if (size <= 2) kind = "particle";
+      else if (aspect >= 4 && density < 0.6) kind = "scratch";
+      else if (edgeTouches > size * 0.3) kind = "edge";
+
+      clusters.push({
+        id: nextLabel,
+        x: minX,
+        y: minY,
+        w,
+        h,
+        size,
+        confidence: 1,
+        kind,
+        color: kind === "scratch" || kind === "edge" ? "magenta" : "cyan",
+      });
+    }
+  }
+  return clusters;
+}
+
 // PNG export ---------------------------------------------------------------
 
 export function exportToPng(map: WaferMap, scale = 16): string {
@@ -322,11 +389,9 @@ export function exportToPng(map: WaferMap, scale = 16): string {
   const ctx = c.getContext("2d")!;
   ctx.imageSmoothingEnabled = false;
 
-  // Background
   ctx.fillStyle = "#000000";
   ctx.fillRect(0, 0, size, size);
 
-  // Defects (only inside the wafer)
   ctx.fillStyle = "#ffffff";
   for (let y = 0; y < GRID_SIZE; y++) {
     for (let x = 0; x < GRID_SIZE; x++) {
@@ -335,7 +400,6 @@ export function exportToPng(map: WaferMap, scale = 16): string {
     }
   }
 
-  // Subtle grid (burned in)
   ctx.strokeStyle = "rgba(255,255,255,0.08)";
   ctx.lineWidth = 1;
   ctx.beginPath();
@@ -348,7 +412,6 @@ export function exportToPng(map: WaferMap, scale = 16): string {
   }
   ctx.stroke();
 
-  // Wafer outline ring
   ctx.strokeStyle = "rgba(255,255,255,0.5)";
   ctx.lineWidth = Math.max(2, scale / 6);
   ctx.beginPath();

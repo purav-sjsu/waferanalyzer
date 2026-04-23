@@ -16,7 +16,8 @@ import {
   type Tool,
   type WaferMap,
 } from "@/lib/wafer";
-import { runDetection } from "@/lib/mlClient";
+import { runDetection, type MlSource } from "@/lib/mlClient";
+import { preloadModel } from "@/lib/onnxClient";
 
 const HISTORY_LIMIT = 50;
 
@@ -27,7 +28,7 @@ const Index = () => {
   const [showGrid, setShowGrid] = useState(true);
   const [showOverlay, setShowOverlay] = useState(true);
   const [detection, setDetection] = useState<DetectionResult | null>(null);
-  const [detectionSource, setDetectionSource] = useState<"remote" | "local" | null>(null);
+  const [detectionSource, setDetectionSource] = useState<MlSource | null>(null);
   const [isDetecting, setIsDetecting] = useState(false);
   // bump to re-render when model settings change
   const [, setSettingsTick] = useState(0);
@@ -91,12 +92,18 @@ const Index = () => {
       setDetection(result);
       setDetectionSource(source);
       setShowOverlay(true);
-      toast({
-        title: source === "remote" ? "Model response received" : "Analysis complete (local)",
-        description: `${result.clusters.length} cluster${
-          result.clusters.length === 1 ? "" : "s"
-        } · ${result.defectPct.toFixed(2)}% defective`,
-      });
+      const sourceLabel =
+        source === "onnx"
+          ? "CNN (in-browser)"
+          : source === "remote"
+          ? "Remote model"
+          : "Heuristic";
+      const desc = result.predictedClass
+        ? `${sourceLabel}: ${result.predictedClass} · ${(result.modelConfidence * 100).toFixed(1)}% conf`
+        : `${result.clusters.length} cluster${
+            result.clusters.length === 1 ? "" : "s"
+          } · ${result.defectPct.toFixed(2)}% defective`;
+      toast({ title: "Analysis complete", description: desc });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       toast({
@@ -114,6 +121,11 @@ const Index = () => {
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
     downloadDataUrl(url, `wafer-map-${stamp}.png`);
   }, [map]);
+
+  useEffect(() => {
+    // Warm up the ONNX session in the background.
+    preloadModel();
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
