@@ -1,5 +1,7 @@
-// ML client — calls a configurable HTTP endpoint that wraps the notebook model.
-// Falls back to the local heuristic detector when no endpoint is configured.
+// ML client — picks the best available inference backend:
+//   1. In-browser ONNX model (cnn_wafer.onnx) — preferred
+//   2. Configurable HTTP endpoint (advanced users)
+//   3. Local heuristic detector (offline fallback)
 
 import {
   GRID_SIZE,
@@ -8,15 +10,19 @@ import {
   type DetectionResult,
   type WaferMap,
 } from "./wafer";
+import { runOnnxDetection } from "./onnxClient";
 
 const ENDPOINT_KEY = "wafer.mlEndpoint";
 const APIKEY_KEY = "wafer.mlApiKey";
+const BACKEND_KEY = "wafer.mlBackend"; // "onnx" | "remote" | "local"
+
+export type MlBackend = "onnx" | "remote" | "local";
+export type MlSource = "onnx" | "remote" | "local";
 
 export function getEndpoint(): string {
   if (typeof window === "undefined") return "";
   return localStorage.getItem(ENDPOINT_KEY) ?? "";
 }
-
 export function setEndpoint(url: string) {
   if (url) localStorage.setItem(ENDPOINT_KEY, url);
   else localStorage.removeItem(ENDPOINT_KEY);
@@ -26,19 +32,26 @@ export function getApiKey(): string {
   if (typeof window === "undefined") return "";
   return localStorage.getItem(APIKEY_KEY) ?? "";
 }
-
 export function setApiKey(key: string) {
   if (key) localStorage.setItem(APIKEY_KEY, key);
   else localStorage.removeItem(APIKEY_KEY);
 }
 
-// Expected response shape from the user's model server.
-// Designed to be permissive — any of these field names work.
+export function getBackend(): MlBackend {
+  if (typeof window === "undefined") return "onnx";
+  const v = localStorage.getItem(BACKEND_KEY);
+  return v === "remote" || v === "local" ? v : "onnx";
+}
+export function setBackend(b: MlBackend) {
+  localStorage.setItem(BACKEND_KEY, b);
+}
+
+// ---- Remote endpoint adapter ---------------------------------------------
+
 interface RawCluster {
   id?: number;
   x?: number; y?: number; w?: number; h?: number;
-  // alternative bbox formats
-  bbox?: [number, number, number, number]; // [x, y, w, h]
+  bbox?: [number, number, number, number];
   x0?: number; y0?: number; x1?: number; y1?: number;
   size?: number;
   area?: number;
@@ -103,22 +116,14 @@ function normalizeCluster(raw: RawCluster, idx: number): DetectedCluster {
   };
 }
 
-export async function runDetection(map: WaferMap): Promise<{
-  result: DetectionResult;
-  source: "remote" | "local";
-}> {
+async function runRemoteDetection(map: WaferMap): Promise<DetectionResult> {
   const endpoint = getEndpoint();
-  if (!endpoint) {
-    return { result: detectClusters(map), source: "local" };
-  }
-
+  if (!endpoint) throw new Error("No remote endpoint configured");
   const start = performance.now();
   const apiKey = getApiKey();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
 
-  // Send the raw flat array (0/1) plus dimensions. Easy for any
-  // notebook-backed server (FastAPI/Flask) to consume.
   const body = JSON.stringify({
     grid_size: GRID_SIZE,
     width: GRID_SIZE,
@@ -137,7 +142,6 @@ export async function runDetection(map: WaferMap): Promise<{
     data.clusters ?? data.detections ?? data.predictions ?? [];
   const clusters = rawClusters.map(normalizeCluster);
 
-  // Fall back to local stats if server omits them.
   const local = detectClusters(map);
   const defectiveTiles = data.defective_tiles ?? data.defectiveTiles ?? local.defectiveTiles;
   const totalActiveTiles =
@@ -157,15 +161,35 @@ export async function runDetection(map: WaferMap): Promise<{
     data.inference_ms ?? data.inferenceMs ?? performance.now() - start;
 
   return {
-    result: {
-      clusters,
-      defectiveTiles,
-      defectPct,
-      totalActiveTiles,
-      modelConfidence,
-      inferenceMs,
-      yieldPct,
-    },
-    source: "remote",
+    clusters,
+    defectiveTiles,
+    defectPct,
+    totalActiveTiles,
+    modelConfidence,
+    inferenceMs,
+    yieldPct,
   };
+}
+
+// ---- Public entry point --------------------------------------------------
+
+export async function runDetection(map: WaferMap): Promise<{
+  result: DetectionResult;
+  source: MlSource;
+}> {
+  const backend = getBackend();
+
+  if (backend === "remote" && getEndpoint()) {
+    return { result: await runRemoteDetection(map), source: "remote" };
+  }
+  if (backend === "local") {
+    return { result: detectClusters(map), source: "local" };
+  }
+  // Default: in-browser ONNX. Fall through to local heuristic on failure.
+  try {
+    return { result: await runOnnxDetection(map), source: "onnx" };
+  } catch (err) {
+    console.warn("ONNX inference failed, falling back to heuristic:", err);
+    return { result: detectClusters(map), source: "local" };
+  }
 }
