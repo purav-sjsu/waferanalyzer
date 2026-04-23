@@ -53,7 +53,7 @@ function getColors(isDark: boolean) {
     primarySoft: "hsla(224, 70%, 48%, 0.14)",
     warn: "hsl(0 72% 50%)",
     warnSoft: "hsla(0, 72%, 50%, 0.14)",
-    labelBg: "C_LABEL_BG",
+    labelBg: "rgba(255, 255, 255, 0.95)",
   };
 }
 export function WaferCanvas({
@@ -193,7 +193,7 @@ export function WaferCanvas({
       const th = 13;
       const lx = Math.min(size - tw - 2, Math.max(2, x));
       const ly = Math.max(0, y - th - 2);
-      ctx.fillStyle = "C_LABEL_BG";
+      ctx.fillStyle = C_LABEL_BG;
       ctx.fillRect(lx, ly, tw, th);
       ctx.strokeStyle = stroke;
       ctx.lineWidth = 1;
