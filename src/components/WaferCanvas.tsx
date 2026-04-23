@@ -22,6 +22,7 @@ interface Props {
   showGrid: boolean;
   detection: DetectionResult | null;
   showOverlay: boolean;
+  isDark?: boolean;
   onCommit: (next: WaferMap) => void;
 }
 
