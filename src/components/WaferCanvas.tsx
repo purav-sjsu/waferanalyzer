@@ -28,17 +28,34 @@ interface Props {
 
 const TILE_PX = 11;
 
-// Theme colors for the canvas (academic light theme).
-const COLOR_WORKSPACE = "hsl(220 18% 96%)";
-const COLOR_DISC = "hsl(220 12% 92%)";
-const COLOR_DEFECT = "hsl(222 30% 18%)";
-const COLOR_GRID = "rgba(15, 23, 42, 0.08)";
-const COLOR_RING = "hsl(222 25% 28%)";
-const COLOR_PRIMARY = "hsl(224 70% 48%)";
-const COLOR_PRIMARY_SOFT = "hsla(224, 70%, 48%, 0.14)";
-const COLOR_WARN = "hsl(0 72% 50%)";
-const COLOR_WARN_SOFT = "hsla(0, 72%, 50%, 0.14)";
-
+function getColors(isDark: boolean) {
+  if (isDark) {
+    return {
+      workspace: "hsl(222 20% 12%)",
+      disc: "hsl(222 18% 18%)",
+      defect: "hsl(224 70% 65%)",
+      grid: "rgba(210, 20%, 96%, 0.08)",
+      ring: "hsl(224 60% 50%)",
+      primary: "hsl(224 70% 65%)",
+      primarySoft: "hsla(224, 70%, 65%, 0.14)",
+      warn: "hsl(0 70% 60%)",
+      warnSoft: "hsla(0, 70%, 60%, 0.14)",
+      labelBg: "hsla(222, 18%, 16%, 0.95)",
+    };
+  }
+  return {
+    workspace: "hsl(220 18% 96%)",
+    disc: "hsl(220 12% 92%)",
+    defect: "hsl(222 30% 18%)",
+    grid: "rgba(15, 23, 42, 0.08)",
+    ring: "hsl(222 25% 28%)",
+    primary: "hsl(224 70% 48%)",
+    primarySoft: "hsla(224, 70%, 48%, 0.14)",
+    warn: "hsl(0 72% 50%)",
+    warnSoft: "hsla(0, 72%, 50%, 0.14)",
+    labelBg: "rgba(255, 255, 255, 0.95)",
+  };
+}
 export function WaferCanvas({
   map,
   tool,
