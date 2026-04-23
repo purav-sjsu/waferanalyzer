@@ -53,7 +53,7 @@ function getColors(isDark: boolean) {
     primarySoft: "hsla(224, 70%, 48%, 0.14)",
     warn: "hsl(0 72% 50%)",
     warnSoft: "hsla(0, 72%, 50%, 0.14)",
-    labelBg: "rgba(255, 255, 255, 0.95)",
+    labelBg: "C_LABEL_BG",
   };
 }
 export function WaferCanvas({
@@ -106,7 +106,7 @@ export function WaferCanvas({
     canvas.width = size;
     canvas.height = size;
 
-    ctx.fillStyle = COLOR_WORKSPACE;
+    ctx.fillStyle = C_WORKSPACE;
     ctx.fillRect(0, 0, size, size);
 
     ctx.save();
@@ -115,10 +115,10 @@ export function WaferCanvas({
     ctx.closePath();
     ctx.clip();
 
-    ctx.fillStyle = COLOR_DISC;
+    ctx.fillStyle = C_DISC;
     ctx.fillRect(0, 0, size, size);
 
-    ctx.fillStyle = COLOR_DEFECT;
+    ctx.fillStyle = C_DEFECT;
     for (let y = 0; y < GRID_SIZE; y++) {
       for (let x = 0; x < GRID_SIZE; x++) {
         if (!isInside(x, y)) continue;
@@ -129,7 +129,7 @@ export function WaferCanvas({
     }
 
     if (showGrid) {
-      ctx.strokeStyle = COLOR_GRID;
+      ctx.strokeStyle = C_GRID;
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let i = 0; i <= GRID_SIZE; i++) {
@@ -144,15 +144,15 @@ export function WaferCanvas({
 
     ctx.restore();
 
-    ctx.strokeStyle = COLOR_RING;
+    ctx.strokeStyle = C_RING;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(size / 2, size / 2, size / 2 - 2, 0, Math.PI * 2);
     ctx.stroke();
 
     // Notch (orientation marker at bottom)
-    ctx.fillStyle = COLOR_WORKSPACE;
-    ctx.strokeStyle = COLOR_RING;
+    ctx.fillStyle = C_WORKSPACE;
+    ctx.strokeStyle = C_RING;
     ctx.lineWidth = 2;
     ctx.beginPath();
     const notchR = TILE_PX * 1.2;
@@ -173,8 +173,8 @@ export function WaferCanvas({
     if (!detection || !showOverlay) return;
 
     for (const c of detection.clusters) {
-      const stroke = c.color === "magenta" ? COLOR_WARN : COLOR_PRIMARY;
-      const fill = c.color === "magenta" ? COLOR_WARN_SOFT : COLOR_PRIMARY_SOFT;
+      const stroke = c.color === "magenta" ? C_WARN : C_PRIMARY;
+      const fill = c.color === "magenta" ? C_WARN_SOFT : C_PRIMARY_SOFT;
       const x = c.x * TILE_PX;
       const y = c.y * TILE_PX;
       const w = c.w * TILE_PX;
@@ -193,7 +193,7 @@ export function WaferCanvas({
       const th = 13;
       const lx = Math.min(size - tw - 2, Math.max(2, x));
       const ly = Math.max(0, y - th - 2);
-      ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+      ctx.fillStyle = "C_LABEL_BG";
       ctx.fillRect(lx, ly, tw, th);
       ctx.strokeStyle = stroke;
       ctx.lineWidth = 1;
@@ -217,8 +217,8 @@ export function WaferCanvas({
     const drag = dragStateRef.current;
     const isDragShape = drag && (tool === "line" || tool === "rect" || tool === "circle");
 
-    ctx.strokeStyle = COLOR_PRIMARY;
-    ctx.fillStyle = COLOR_PRIMARY_SOFT;
+    ctx.strokeStyle = C_PRIMARY;
+    ctx.fillStyle = C_PRIMARY_SOFT;
     ctx.lineWidth = 1;
 
     if (isDragShape) {
@@ -247,7 +247,7 @@ export function WaferCanvas({
         ctx.moveTo((x0 + 0.5) * TILE_PX, (y0 + 0.5) * TILE_PX);
         ctx.lineTo((x1 + 0.5) * TILE_PX, (y1 + 0.5) * TILE_PX);
         ctx.lineWidth = Math.max(1, brushSize) * (TILE_PX / 2);
-        ctx.strokeStyle = COLOR_PRIMARY_SOFT;
+        ctx.strokeStyle = C_PRIMARY_SOFT;
         ctx.stroke();
       }
       return;
