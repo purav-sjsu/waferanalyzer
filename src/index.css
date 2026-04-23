@@ -9,56 +9,56 @@
 
 @layer base {
   :root {
-    /* Paper-like workspace */
-    --background: 210 20% 98%;
-    --foreground: 222 25% 14%;
+    /* Paper-like workspace with a soft tint */
+    --background: 215 30% 97%;
+    --foreground: 222 30% 14%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 25% 14%;
+    --card-foreground: 222 30% 14%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 25% 14%;
+    --popover-foreground: 222 30% 14%;
 
-    /* Primary = academic indigo */
-    --primary: 224 60% 42%;
+    /* Primary = vivid academic indigo */
+    --primary: 232 72% 52%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 215 20% 94%;
-    --secondary-foreground: 222 25% 18%;
+    --secondary: 220 30% 94%;
+    --secondary-foreground: 222 30% 18%;
 
-    --muted: 215 20% 94%;
-    --muted-foreground: 220 10% 42%;
+    --muted: 220 25% 94%;
+    --muted-foreground: 220 12% 42%;
 
-    /* Accent = warm amber for highlights */
-    --accent: 28 85% 50%;
+    /* Accent = teal for highlights */
+    --accent: 178 70% 42%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 70% 48%;
+    --destructive: 352 78% 52%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 14% 88%;
-    --input: 220 14% 88%;
-    --ring: 224 60% 42%;
+    --border: 220 18% 86%;
+    --input: 220 18% 86%;
+    --ring: 232 72% 52%;
 
     --radius: 0.375rem;
 
     /* Wafer-specific tokens */
-    --wafer-surface: 220 18% 96%;       /* canvas background — light paper */
-    --wafer-disc: 220 12% 90%;          /* clean wafer surface */
-    --wafer-defect: 222 30% 18%;        /* dark ink for defect tiles */
-    --wafer-grid: 220 14% 78%;          /* grid lines */
-    --wafer-ring: 222 25% 28%;          /* outer wafer ring */
-    --detect-primary: 224 70% 48%;      /* indigo bbox */
-    --detect-warning: 0 70% 50%;        /* red bbox for scratches/edges */
+    --wafer-surface: 215 35% 95%;       /* canvas background — soft tinted paper */
+    --wafer-disc: 220 18% 92%;          /* clean wafer surface */
+    --wafer-defect: 232 60% 22%;        /* deep indigo ink for defect tiles */
+    --wafer-grid: 220 18% 76%;          /* grid lines */
+    --wafer-ring: 232 50% 30%;          /* outer wafer ring */
+    --detect-primary: 232 80% 54%;      /* indigo bbox */
+    --detect-warning: 352 80% 55%;      /* red bbox for scratches/edges */
 
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 222 25% 14%;
-    --sidebar-primary: 224 60% 42%;
+    --sidebar-foreground: 222 30% 14%;
+    --sidebar-primary: 232 72% 52%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 215 20% 94%;
-    --sidebar-accent-foreground: 222 25% 18%;
-    --sidebar-border: 220 14% 88%;
-    --sidebar-ring: 224 60% 42%;
+    --sidebar-accent: 220 30% 94%;
+    --sidebar-accent-foreground: 222 30% 18%;
+    --sidebar-border: 220 18% 86%;
+    --sidebar-ring: 232 72% 52%;
   }
 
   .dark {
