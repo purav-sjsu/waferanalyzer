@@ -97,7 +97,7 @@ export function StatsPanel({
         <div className="font-mono-stat mb-2 flex items-center justify-between gap-2 text-[10px] uppercase tracking-wider text-muted-foreground">
           <span className="flex items-center gap-2">
             <Cpu className="h-3 w-3" />
-            ML detection
+            MODEL ANALYSIS
           </span>
           {detectionSource && (
             <span

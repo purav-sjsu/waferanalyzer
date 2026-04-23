@@ -171,10 +171,10 @@ const Index = () => {
           </div>
           <div>
             <h1 className="text-sm font-semibold text-foreground">
-              Silicon Wafer Defect Detector
+              Silicon Wafer Defect Analysis
             </h1>
             <p className="text-[11px] text-muted-foreground">
-              Course project · interactive ML inference demo
+              CMPE 257&nbsp;
             </p>
           </div>
         </div>
@@ -208,7 +208,7 @@ const Index = () => {
             ) : (
               <Play className="h-3.5 w-3.5" />
             )}
-            Analyze defects
+            Analyze Defects
           </Button>
         </div>
       </header>
