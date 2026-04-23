@@ -63,6 +63,7 @@ export function WaferCanvas({
   showGrid,
   detection,
   showOverlay,
+  isDark = false,
   onCommit,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -80,6 +81,19 @@ export function WaferCanvas({
   const [hover, setHover] = useState<{ x: number; y: number } | null>(null);
 
   const renderMap = draftMap ?? map;
+
+  const {
+    workspace: C_WORKSPACE,
+    disc: C_DISC,
+    defect: C_DEFECT,
+    grid: C_GRID,
+    ring: C_RING,
+    primary: C_PRIMARY,
+    primarySoft: C_PRIMARY_SOFT,
+    warn: C_WARN,
+    warnSoft: C_WARN_SOFT,
+    labelBg: C_LABEL_BG,
+  } = getColors(isDark);
 
   // Draw wafer map
   useEffect(() => {
