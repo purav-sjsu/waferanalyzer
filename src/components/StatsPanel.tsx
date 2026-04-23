@@ -3,10 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import type { DetectionResult } from "@/lib/wafer";
+import type { MlSource } from "@/lib/mlClient";
 
 interface Props {
   detection: DetectionResult | null;
-  detectionSource: "remote" | "local" | null;
+  detectionSource: MlSource | null;
   isDetecting: boolean;
   showOverlay: boolean;
   showGrid: boolean;
@@ -16,6 +17,12 @@ interface Props {
   defectiveTilesLive: number;
   totalActive: number;
 }
+
+const SOURCE_LABEL: Record<MlSource, string> = {
+  onnx: "CNN · in-browser",
+  remote: "remote model",
+  local: "heuristic",
+};
 
 function Stat({
   label,
@@ -96,12 +103,12 @@ export function StatsPanel({
             <span
               className={cn(
                 "rounded px-1.5 py-0.5 text-[9px]",
-                detectionSource === "remote"
+                detectionSource === "onnx" || detectionSource === "remote"
                   ? "bg-primary/10 text-primary"
                   : "bg-secondary text-muted-foreground",
               )}
             >
-              {detectionSource === "remote" ? "remote model" : "local fallback"}
+              {SOURCE_LABEL[detectionSource]}
             </span>
           )}
         </div>
