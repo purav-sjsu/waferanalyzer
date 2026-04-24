@@ -49,7 +49,8 @@ const Index = () => {
   const [outputSize, setOutputSize] = useState(64);
   const [isDark, setIsDark] = useState(() => {
     if (typeof window === "undefined") return false;
-    return document.documentElement.classList.contains("dark");
+    const saved = localStorage.getItem("wafer.theme");
+    return saved !== null ? saved === "dark" : document.documentElement.classList.contains("dark");
   });
   // bump to re-render when model settings change
   const [, setSettingsTick] = useState(0);
@@ -189,8 +190,10 @@ const Index = () => {
   useEffect(() => {
     if (isDark) {
       document.documentElement.classList.add("dark");
+      localStorage.setItem("wafer.theme", "dark");
     } else {
       document.documentElement.classList.remove("dark");
+      localStorage.setItem("wafer.theme", "light");
     }
   }, [isDark]);
 
