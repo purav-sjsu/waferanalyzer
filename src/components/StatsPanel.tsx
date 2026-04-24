@@ -1,5 +1,14 @@
-import { Cpu, Download, Loader2, RotateCcw } from "lucide-react";
+import { Cpu, Download, Loader2, RotateCcw, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { DialogTrigger } from "@/components/ui/dialog";
+import { useState } from "react";
 import type { DetectionResult } from "@/lib/wafer";
 import type { MlSource } from "@/lib/mlClient";
 
@@ -86,6 +95,7 @@ export function StatsPanel({
   displaySize,
   isDark,
 }: Props) {
+  const [modelOpen, setModelOpen] = useState(false);
   const defectPct   = activeDies > 0 ? (defectiveDies / activeDies) * 100 : 0;
   const goodDies    = activeDies - defectiveDies;
   const goodPct     = activeDies > 0 ? (goodDies / activeDies) * 100 : 100;
@@ -132,9 +142,33 @@ export function StatsPanel({
             <Cpu className="h-4 w-4 text-muted-foreground" />
             <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Model Analysis</span>
           </span>
-          <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[9px] text-primary">
-            {SOURCE_LABEL[detectionSource ?? "onnx"]}
-          </span>
+          <Dialog open={modelOpen} onOpenChange={setModelOpen}>
+            <DialogTrigger asChild>
+              <button className="flex items-center gap-1.5 rounded bg-primary/10 px-2 py-1 text-[10px] text-primary transition-colors hover:bg-primary/20">
+                <SlidersHorizontal className="h-3 w-3" />
+                {SOURCE_LABEL[detectionSource ?? "onnx"]}
+              </button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  Model
+                </DialogTitle>
+                <DialogDescription className="text-sm text-muted-foreground">
+                  Choose which model performs classification.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="rounded-md border border-border p-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">CNN</span>
+                  <span className="ml-auto rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">active</span>
+                </div>
+                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                  Runs <code className="rounded bg-muted px-1">cnn_wafer.onnx</code> via onnxruntime-web
+                </p>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
 
         {!detection && !isDetecting && (

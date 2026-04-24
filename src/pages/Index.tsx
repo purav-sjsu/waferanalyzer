@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Toolbar } from "@/components/Toolbar";
 import { WaferCanvas } from "@/components/WaferCanvas";
 import { StatsPanel } from "@/components/StatsPanel";
-import { ModelSettings } from "@/components/ModelSettings";
+import { AboutDialog } from "@/components/AboutDialog";
 import { toast } from "@/hooks/use-toast";
 import {
   GRID_SIZE,
@@ -52,8 +52,6 @@ const Index = () => {
     const saved = localStorage.getItem("wafer.theme");
     return saved !== null ? saved === "dark" : document.documentElement.classList.contains("dark");
   });
-  // bump to re-render when model settings change
-  const [, setSettingsTick] = useState(0);
 
   const undoStack = useRef<WaferMap[]>([]);
   const redoStack = useRef<WaferMap[]>([]);
@@ -274,7 +272,7 @@ const Index = () => {
               ? <Sun className="h-4 w-4 text-yellow-400" />
               : <Moon className="h-4 w-4 text-slate-500" />}
           </Button>
-          <ModelSettings onChange={() => setSettingsTick((t) => t + 1)} />
+          <AboutDialog />
           <Button
             size="sm"
             onClick={handleDetect}
