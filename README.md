@@ -1,6 +1,8 @@
-# WaferAnalyzer
+# Silicon Wafer Defect Analysis
 
-A web-based silicon wafer defect analysis tool. Draw defect patterns on an interactive wafer map, run in-browser CNN inference, and export results as PNG.
+Interactive silicon wafer map editor with in-browser defect pattern classification.
+
+**Authors:** Shanthanu Gopikrishnan · Purav Parab · Sam Jafari · Hossein Khoshnevis
 
 ## Features
 
