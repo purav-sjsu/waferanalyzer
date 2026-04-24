@@ -70,36 +70,24 @@ function softmax(logits: Float32Array): Float32Array {
   return exps;
 }
 
-export async function runOnnxDetection(map: WaferMap, targetSize = GRID_SIZE): Promise<DetectionResult> {
+export async function runOnnxDetection(map: WaferMap): Promise<DetectionResult> {
   const start = performance.now();
   const session = await getSession();
 
-  // Matches training resize_and_pad:
-  //   1. Scale longest side to targetSize (nearest-neighbor), preserving aspect ratio
-  //   2. Center-pad shorter side with 0 (outside wafer)
-  //   3. Normalize: outside=0.0, normal die=0.5, defect=1.0
-  const scale = targetSize / Math.max(GRID_SIZE, GRID_SIZE); // square source, always 1:1
-  const newH = Math.round(GRID_SIZE * scale);
-  const newW = Math.round(GRID_SIZE * scale);
-  const padTop = Math.floor((targetSize - newH) / 2);
-  const padLeft = Math.floor((targetSize - newW) / 2);
-
-  const input = new Float32Array(targetSize * targetSize); // zero-filled = outside wafer
-  for (let y = 0; y < newH; y++) {
-    for (let x = 0; x < newW; x++) {
-      const srcX = Math.floor((x / newW) * GRID_SIZE);
-      const srcY = Math.floor((y / newH) * GRID_SIZE);
-      const srcI = srcY * GRID_SIZE + srcX;
-      const dstI = (y + padTop) * targetSize + (x + padLeft);
-      if (map[srcI] === 1) {
-        input[dstI] = 1.0;
-      } else if (isInside(srcX, srcY)) {
-        input[dstI] = 0.5;
+  // Model input is always [1, 1, 64, 64] — display size is independent.
+  // Normalize: outside circle → 0.0, clear die → 0.5, defective die → 1.0.
+  const input = new Float32Array(GRID_SIZE * GRID_SIZE);
+  for (let y = 0; y < GRID_SIZE; y++) {
+    for (let x = 0; x < GRID_SIZE; x++) {
+      const i = y * GRID_SIZE + x;
+      if (map[i] === 1) {
+        input[i] = 1.0;
+      } else if (isInside(x, y)) {
+        input[i] = 0.5;
       }
-      // else: 0.0 already from Float32Array zero-fill
     }
   }
-  const tensor = new ort.Tensor("float32", input, [1, 1, targetSize, targetSize]);
+  const tensor = new ort.Tensor("float32", input, [1, 1, GRID_SIZE, GRID_SIZE]);
 
   const inputName = session.inputNames[0] ?? "wafer_map";
   const outputName = session.outputNames[0] ?? "logits";

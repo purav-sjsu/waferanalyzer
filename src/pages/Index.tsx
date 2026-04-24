@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Cpu, Microscope, Moon, Play, RotateCcw, Sun } from "lucide-react";
+import { Cpu, Microscope, Moon, Play, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Toolbar } from "@/components/Toolbar";
 import { WaferCanvas } from "@/components/WaferCanvas";
@@ -7,7 +7,8 @@ import { StatsPanel } from "@/components/StatsPanel";
 import { ModelSettings } from "@/components/ModelSettings";
 import { toast } from "@/hooks/use-toast";
 import {
-  activeTileCount,
+  GRID_SIZE,
+  isInside,
   countDefects,
   createEmptyMap,
   downloadDataUrl,
@@ -30,7 +31,6 @@ const Index = () => {
   const [detectionSource, setDetectionSource] = useState<MlSource | null>(null);
   const [isDetecting, setIsDetecting] = useState(false);
   const [outputSize, setOutputSize] = useState(64);
-  const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
   const [isDark, setIsDark] = useState(() => {
     if (typeof window === "undefined") return false;
     return document.documentElement.classList.contains("dark");
@@ -41,8 +41,30 @@ const Index = () => {
   const undoStack = useRef<WaferMap[]>([]);
   const redoStack = useRef<WaferMap[]>([]);
 
-  const totalActive = useMemo(() => activeTileCount(), []);
-  const defectiveLive = useMemo(() => countDefects(map), [map]);
+  // Display-space metrics keyed to isInside — the same gate paintTile uses —
+  // so activeDies counts only tiles that can actually be painted, making 100% reachable.
+  const activeDies = useMemo(() => {
+    let n = 0;
+    for (let dy = 0; dy < outputSize; dy++)
+      for (let dx = 0; dx < outputSize; dx++) {
+        const srcX = Math.floor(dx / outputSize * GRID_SIZE);
+        const srcY = Math.floor(dy / outputSize * GRID_SIZE);
+        if (isInside(srcX, srcY)) n++;
+      }
+    return n;
+  }, [outputSize]);
+
+  const defectiveDies = useMemo(() => {
+    let n = 0;
+    for (let dy = 0; dy < outputSize; dy++)
+      for (let dx = 0; dx < outputSize; dx++) {
+        const srcX = Math.floor(dx / outputSize * GRID_SIZE);
+        const srcY = Math.floor(dy / outputSize * GRID_SIZE);
+        if (!isInside(srcX, srcY)) continue;
+        if (map[srcY * GRID_SIZE + srcX]) n++;
+      }
+    return n;
+  }, [map, outputSize]);
 
   const commit = useCallback((next: WaferMap) => {
     setMap((prev) => {
@@ -93,7 +115,7 @@ const Index = () => {
     }
     setIsDetecting(true);
     try {
-      const { result, source } = await runDetection(map, outputSize);
+      const { result, source } = await runDetection(map);
       setDetection(result);
       setDetectionSource(source);
       const sourceLabel =
@@ -196,25 +218,19 @@ const Index = () => {
             variant="ghost"
             size="icon"
             onClick={() => setIsDark((d) => !d)}
-            className="h-8 w-8 text-muted-foreground"
+            className="h-8 w-8 hover:bg-transparent"
             aria-label="Toggle dark mode"
           >
-            {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            {isDark
+              ? <Sun className="h-4 w-4 text-yellow-400" />
+              : <Moon className="h-4 w-4 text-slate-500" />}
           </Button>
           <ModelSettings onChange={() => setSettingsTick((t) => t + 1)} />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => commit(createEmptyMap())}
-            className="gap-2 text-xs text-muted-foreground"
-          >
-            <RotateCcw className="h-3.5 w-3.5" /> Reset
-          </Button>
           <Button
             size="sm"
             onClick={handleDetect}
             disabled={isDetecting}
-            className="gap-2 text-xs"
+            className="gap-2 bg-[hsl(224,70%,48%)] text-xs text-white hover:bg-[hsl(224,70%,42%)]"
           >
             {isDetecting ? (
               <Cpu className="h-3.5 w-3.5 animate-pulse" />
@@ -252,7 +268,6 @@ const Index = () => {
             isDark={isDark}
             displaySize={outputSize}
             onCommit={commit}
-            onHoverChange={setHoverPos}
           />
           <div className="flex w-full items-center gap-4 rounded-lg border border-border bg-card px-4 py-3">
             <span className="font-mono-stat shrink-0 text-sm font-medium text-muted-foreground">32×32</span>
@@ -266,7 +281,7 @@ const Index = () => {
               className="h-2 flex-1 cursor-pointer accent-primary"
             />
             <span className="font-mono-stat shrink-0 text-sm font-medium text-muted-foreground">128×128</span>
-            <span className="font-mono-stat w-20 shrink-0 text-right text-sm font-semibold tabular-nums text-foreground">
+            <span className="font-mono-stat w-24 shrink-0 rounded-md bg-[hsl(224,70%,48%)] py-1 text-center text-sm font-semibold tabular-nums text-white">
               {outputSize}×{outputSize}
             </span>
           </div>
@@ -278,10 +293,11 @@ const Index = () => {
           detectionSource={detectionSource}
           isDetecting={isDetecting}
           onExport={handleExport}
-          defectiveTilesLive={defectiveLive}
-          totalActive={totalActive}
+          defectiveDies={defectiveDies}
+          activeDies={activeDies}
           displaySize={outputSize}
-          hoverPos={hoverPos}
+          isDark={isDark}
+          onReset={() => commit(createEmptyMap())}
         />
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   GRID_SIZE,
+  isInside,
   type Tool,
   type WaferMap,
   floodFill,
@@ -21,7 +22,6 @@ interface Props {
   isDark?: boolean;
   displaySize: number;
   onCommit: (next: WaferMap) => void;
-  onHoverChange?: (pos: { x: number; y: number } | null) => void;
 }
 
 // Fixed internal canvas resolution — CSS scales it to fill the container.
@@ -31,10 +31,10 @@ function getColors(isDark: boolean) {
   if (isDark) {
     return {
       workspace:   "#0a0a0a",
-      edge:        "#b8920a",           // golden partial/edge dies
-      die:         "#3d8c3d",           // green good die
-      defect:      "#cc1c1c",           // red defect die
-      grid:        "rgba(55,110,210,0.75)",
+      edge:        "#d97706",           // amber-600
+      die:         "#22c55e",           // green-500
+      defect:      "#dc2626",           // red-600
+      grid:        "rgba(55,110,210,0.55)",
       ring:        "#4a6a99",
       primary:     "hsl(224 70% 65%)",
       primarySoft: "hsla(224,70%,65%,0.22)",
@@ -66,7 +66,6 @@ export function WaferCanvas({
   isDark = false,
   displaySize,
   onCommit,
-  onHoverChange,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cursorRef = useRef<HTMLCanvasElement>(null);
@@ -117,19 +116,14 @@ export function WaferCanvas({
       ctx.fillStyle = C_EDGE;
       ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
-      // Draw each die using center-of-tile vs source-space circle check.
-      // Checking the tile center (not top-left corner) gives a symmetric boundary.
-      const halfGs = GRID_SIZE / 2;
-      const wR2src = (GRID_SIZE / 2 - 0.5) ** 2;
+      // Draw each die — use isInside (same gate as paintTile) so inactive cells
+      // stay as the golden background, matching what can actually be painted.
       for (let dy = 0; dy < displaySize; dy++) {
         for (let dx = 0; dx < displaySize; dx++) {
-          // Center of this display tile in source space
-          const scx = (dx + 0.5) / displaySize * GRID_SIZE;
-          const scy = (dy + 0.5) / displaySize * GRID_SIZE;
-          if ((scx - halfGs) ** 2 + (scy - halfGs) ** 2 > wR2src) continue;
-
           const srcX = Math.floor(dx / displaySize * GRID_SIZE);
           const srcY = Math.floor(dy / displaySize * GRID_SIZE);
+          if (!isInside(srcX, srcY)) continue;
+
           ctx.fillStyle = renderMap[idx(srcX, srcY)] ? C_DEFECT : C_DIE;
           ctx.fillRect(dx * tilePixels, dy * tilePixels, tilePixels, tilePixels);
         }
@@ -252,7 +246,6 @@ export function WaferCanvas({
     (e: React.PointerEvent) => {
       const { x, y } = eventToCell(e);
       setHover({ x, y });
-      onHoverChange?.({ x, y });
       const drag = dragStateRef.current;
       if (!drag) return;
       const value: 0 | 1 = drag.button === 2 || tool === "eraser" ? 0 : 1;
@@ -304,7 +297,7 @@ export function WaferCanvas({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
-        onPointerLeave={() => { setHover(null); onHoverChange?.(null); }}
+        onPointerLeave={() => setHover(null)}
         onContextMenu={(e) => e.preventDefault()}
       />
     </div>
