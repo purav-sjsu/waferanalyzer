@@ -15,7 +15,7 @@ import {
 // WM-811K canonical 9-class label set — ORDER MUST match LABEL_MAP from training:
 // CLASSES = ["none","Edge-Ring","Edge-Loc","Center","Loc","Scratch","Random","Donut","Near-full"]
 // Index 0=none, 1=Edge-Ring, 2=Edge-Loc, 3=Center, 4=Loc, 5=Scratch, 6=Random, 7=Donut, 8=Near-full
-export const WAFER_CLASSES = [
+const WAFER_CLASSES = [
   "none",
   "Edge-Ring",
   "Edge-Loc",
@@ -37,7 +37,7 @@ ort.env.wasm.numThreads = 1;
 
 let sessionPromise: Promise<ort.InferenceSession> | null = null;
 
-export function getSession(): Promise<ort.InferenceSession> {
+function getSession(): Promise<ort.InferenceSession> {
   if (!sessionPromise) {
     sessionPromise = ort.InferenceSession.create(MODEL_URL, {
       executionProviders: ["wasm"],
