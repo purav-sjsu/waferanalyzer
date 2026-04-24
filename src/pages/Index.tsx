@@ -259,13 +259,13 @@ const Index = () => {
             <input
               type="range"
               min={32}
-              max={224}
+              max={128}
               step={8}
               value={outputSize}
               onChange={(e) => setOutputSize(Number(e.target.value))}
               className="h-2 flex-1 cursor-pointer accent-primary"
             />
-            <span className="font-mono-stat shrink-0 text-sm font-medium text-muted-foreground">224×224</span>
+            <span className="font-mono-stat shrink-0 text-sm font-medium text-muted-foreground">128×128</span>
             <span className="font-mono-stat w-20 shrink-0 text-right text-sm font-semibold tabular-nums text-foreground">
               {outputSize}×{outputSize}
             </span>
