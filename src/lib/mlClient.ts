@@ -173,7 +173,7 @@ async function runRemoteDetection(map: WaferMap): Promise<DetectionResult> {
 
 // ---- Public entry point --------------------------------------------------
 
-export async function runDetection(map: WaferMap): Promise<{
+export async function runDetection(map: WaferMap, targetSize = GRID_SIZE): Promise<{
   result: DetectionResult;
   source: MlSource;
 }> {
@@ -187,7 +187,7 @@ export async function runDetection(map: WaferMap): Promise<{
   }
   // Default: in-browser ONNX. Fall through to local heuristic on failure.
   try {
-    return { result: await runOnnxDetection(map), source: "onnx" };
+    return { result: await runOnnxDetection(map, targetSize), source: "onnx" };
   } catch (err) {
     console.warn("ONNX inference failed, falling back to heuristic:", err);
     return { result: detectClusters(map), source: "local" };

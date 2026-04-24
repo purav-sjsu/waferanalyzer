@@ -25,11 +25,12 @@ const Index = () => {
   const [map, setMap] = useState<WaferMap>(() => createEmptyMap());
   const [tool, setTool] = useState<Tool>("brush");
   const [brushSize, setBrushSize] = useState(3);
-  const [showGrid, setShowGrid] = useState(true);
-  const [showOverlay, setShowOverlay] = useState(true);
+  const showGrid = true;
   const [detection, setDetection] = useState<DetectionResult | null>(null);
   const [detectionSource, setDetectionSource] = useState<MlSource | null>(null);
   const [isDetecting, setIsDetecting] = useState(false);
+  const [outputSize, setOutputSize] = useState(64);
+  const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
   const [isDark, setIsDark] = useState(() => {
     if (typeof window === "undefined") return false;
     return document.documentElement.classList.contains("dark");
@@ -92,10 +93,9 @@ const Index = () => {
     }
     setIsDetecting(true);
     try {
-      const { result, source } = await runDetection(map);
+      const { result, source } = await runDetection(map, outputSize);
       setDetection(result);
       setDetectionSource(source);
-      setShowOverlay(true);
       const sourceLabel =
         source === "onnx"
           ? "CNN (in-browser)"
@@ -241,38 +241,47 @@ const Index = () => {
 
         <main className="relative flex flex-1 items-center justify-center overflow-hidden bg-background p-6">
           <div
-            className="pointer-events-none absolute inset-0 opacity-[0.5]"
-            style={{
-              backgroundImage:
-                "linear-gradient(hsl(var(--border)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--border)) 1px, transparent 1px)",
-              backgroundSize: "48px 48px",
-              maskImage:
-                "radial-gradient(ellipse at center, black 40%, transparent 75%)",
-            }}
-          />
+            className="relative flex flex-col items-center gap-4"
+            style={{ width: "min(calc(100vh - 160px), 680px)" }}
+          >
           <WaferCanvas
             map={map}
             tool={tool}
             brushSize={brushSize}
             showGrid={showGrid}
-            detection={detection}
-            showOverlay={showOverlay}
             isDark={isDark}
+            displaySize={outputSize}
             onCommit={commit}
+            onHoverChange={setHoverPos}
           />
+          <div className="flex w-full items-center gap-4 rounded-lg border border-border bg-card px-4 py-3">
+            <span className="font-mono-stat shrink-0 text-sm font-medium text-muted-foreground">32×32</span>
+            <input
+              type="range"
+              min={32}
+              max={224}
+              step={8}
+              value={outputSize}
+              onChange={(e) => setOutputSize(Number(e.target.value))}
+              className="h-2 flex-1 cursor-pointer accent-primary"
+            />
+            <span className="font-mono-stat shrink-0 text-sm font-medium text-muted-foreground">224×224</span>
+            <span className="font-mono-stat w-20 shrink-0 text-right text-sm font-semibold tabular-nums text-foreground">
+              {outputSize}×{outputSize}
+            </span>
+          </div>
+          </div>
         </main>
 
         <StatsPanel
           detection={detection}
           detectionSource={detectionSource}
           isDetecting={isDetecting}
-          showOverlay={showOverlay}
-          showGrid={showGrid}
-          onToggleOverlay={setShowOverlay}
-          onToggleGrid={setShowGrid}
           onExport={handleExport}
           defectiveTilesLive={defectiveLive}
           totalActive={totalActive}
+          displaySize={outputSize}
+          hoverPos={hoverPos}
         />
       </div>
     </div>

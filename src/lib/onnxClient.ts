@@ -70,31 +70,36 @@ function softmax(logits: Float32Array): Float32Array {
   return exps;
 }
 
-export async function runOnnxDetection(map: WaferMap): Promise<DetectionResult> {
+export async function runOnnxDetection(map: WaferMap, targetSize = GRID_SIZE): Promise<DetectionResult> {
   const start = performance.now();
   const session = await getSession();
 
-  // Build [1, 1, 64, 64] float32 tensor matching training normalization:
-  //   outside wafer circle → 0.0  (waferMap value 0, divided by 2)
-  //   normal die (no defect) → 0.5  (waferMap value 1, divided by 2)
-  //   defective die → 1.0  (waferMap value 2, divided by 2)
-  // The canvas WaferMap uses 0=clear, 1=defect inside the circle mask.
-  // Tiles outside the circle are never painted so they stay 0 — correct.
-  // Tiles inside the circle that are clear should be 0.5, not 0.0.
-  const input = new Float32Array(GRID_SIZE * GRID_SIZE);
-  for (let y = 0; y < GRID_SIZE; y++) {
-    for (let x = 0; x < GRID_SIZE; x++) {
-      const i = y * GRID_SIZE + x;
-      if (map[i] === 1) {
-        input[i] = 1.0; // defect die
-      } else if (isInside(x, y)) {
-        input[i] = 0.5; // normal die (inside wafer, not defective)
-      } else {
-        input[i] = 0.0; // outside wafer
+  // Matches training resize_and_pad:
+  //   1. Scale longest side to targetSize (nearest-neighbor), preserving aspect ratio
+  //   2. Center-pad shorter side with 0 (outside wafer)
+  //   3. Normalize: outside=0.0, normal die=0.5, defect=1.0
+  const scale = targetSize / Math.max(GRID_SIZE, GRID_SIZE); // square source, always 1:1
+  const newH = Math.round(GRID_SIZE * scale);
+  const newW = Math.round(GRID_SIZE * scale);
+  const padTop = Math.floor((targetSize - newH) / 2);
+  const padLeft = Math.floor((targetSize - newW) / 2);
+
+  const input = new Float32Array(targetSize * targetSize); // zero-filled = outside wafer
+  for (let y = 0; y < newH; y++) {
+    for (let x = 0; x < newW; x++) {
+      const srcX = Math.floor((x / newW) * GRID_SIZE);
+      const srcY = Math.floor((y / newH) * GRID_SIZE);
+      const srcI = srcY * GRID_SIZE + srcX;
+      const dstI = (y + padTop) * targetSize + (x + padLeft);
+      if (map[srcI] === 1) {
+        input[dstI] = 1.0;
+      } else if (isInside(srcX, srcY)) {
+        input[dstI] = 0.5;
       }
+      // else: 0.0 already from Float32Array zero-fill
     }
   }
-  const tensor = new ort.Tensor("float32", input, [1, 1, GRID_SIZE, GRID_SIZE]);
+  const tensor = new ort.Tensor("float32", input, [1, 1, targetSize, targetSize]);
 
   const inputName = session.inputNames[0] ?? "wafer_map";
   const outputName = session.outputNames[0] ?? "logits";

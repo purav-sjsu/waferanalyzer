@@ -1,6 +1,5 @@
-import { Activity, Cpu, Download, Eye, EyeOff, Grid3x3, Loader2 } from "lucide-react";
+import { Activity, Cpu, Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import type { DetectionResult } from "@/lib/wafer";
 import type { MlSource } from "@/lib/mlClient";
@@ -9,13 +8,11 @@ interface Props {
   detection: DetectionResult | null;
   detectionSource: MlSource | null;
   isDetecting: boolean;
-  showOverlay: boolean;
-  showGrid: boolean;
-  onToggleOverlay: (v: boolean) => void;
-  onToggleGrid: (v: boolean) => void;
   onExport: () => void;
   defectiveTilesLive: number;
   totalActive: number;
+  displaySize: number;
+  hoverPos: { x: number; y: number } | null;
 }
 
 const SOURCE_LABEL: Record<MlSource, string> = {
@@ -62,13 +59,11 @@ export function StatsPanel({
   detection,
   detectionSource,
   isDetecting,
-  showOverlay,
-  showGrid,
-  onToggleOverlay,
-  onToggleGrid,
   onExport,
   defectiveTilesLive,
   totalActive,
+  displaySize,
+  hoverPos,
 }: Props) {
   const liveDefectPct = (defectiveTilesLive / totalActive) * 100;
   return (
@@ -90,6 +85,16 @@ export function StatsPanel({
             sub={liveDefectPct > 5 ? "above threshold" : "within bounds"}
             tone={liveDefectPct > 5 ? "warn" : "default"}
           />
+        </div>
+        <div className="mt-2 flex items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2">
+          <span className="font-mono-stat text-[10px] text-muted-foreground">
+            {hoverPos
+              ? <>cursor&nbsp;&nbsp;x:{String(hoverPos.x).padStart(2, "0")} · y:{String(hoverPos.y).padStart(2, "0")}</>
+              : <>cursor&nbsp;&nbsp;—</>}
+          </span>
+          <span className="font-mono-stat text-[10px] tabular-nums text-foreground">
+            {displaySize}×{displaySize}
+          </span>
         </div>
       </div>
 
@@ -231,27 +236,7 @@ export function StatsPanel({
         )}
       </div>
 
-      <div className="mt-auto space-y-3 border-t border-border pt-3">
-        <div className="space-y-2">
-          <label className="flex items-center justify-between gap-2">
-            <span className="font-mono-stat flex items-center gap-2 text-[11px] text-muted-foreground">
-              <Grid3x3 className="h-3 w-3" /> Show grid
-            </span>
-            <Switch checked={showGrid} onCheckedChange={onToggleGrid} />
-          </label>
-          <label className="flex items-center justify-between gap-2">
-            <span className="font-mono-stat flex items-center gap-2 text-[11px] text-muted-foreground">
-              {showOverlay ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-              Detection overlay
-            </span>
-            <Switch
-              checked={showOverlay}
-              onCheckedChange={onToggleOverlay}
-              disabled={!detection}
-            />
-          </label>
-        </div>
-
+      <div className="mt-auto border-t border-border pt-3">
         <Button onClick={onExport} variant="outline" className="w-full justify-center gap-2">
           <Download className="h-4 w-4" /> Export PNG
         </Button>

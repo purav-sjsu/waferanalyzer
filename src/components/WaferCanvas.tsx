@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   GRID_SIZE,
-  type DetectionResult,
   type Tool,
   type WaferMap,
   floodFill,
   idx,
-  isInside,
   paintBrush,
   paintCircle,
   paintLine,
@@ -20,263 +18,215 @@ interface Props {
   tool: Tool;
   brushSize: number;
   showGrid: boolean;
-  detection: DetectionResult | null;
-  showOverlay: boolean;
   isDark?: boolean;
+  displaySize: number;
   onCommit: (next: WaferMap) => void;
+  onHoverChange?: (pos: { x: number; y: number } | null) => void;
 }
 
-const TILE_PX = 11;
+// Fixed internal canvas resolution — CSS scales it to fill the container.
+const CANVAS_SIZE = 900;
 
 function getColors(isDark: boolean) {
   if (isDark) {
     return {
-      workspace: "hsl(222 20% 12%)",
-      disc: "hsl(222 18% 18%)",
-      defect: "hsl(224 70% 65%)",
-      grid: "rgba(210, 20%, 96%, 0.08)",
-      ring: "hsl(224 60% 50%)",
-      primary: "hsl(224 70% 65%)",
-      primarySoft: "hsla(224, 70%, 65%, 0.14)",
-      warn: "hsl(0 70% 60%)",
-      warnSoft: "hsla(0, 70%, 60%, 0.14)",
-      labelBg: "hsla(222, 18%, 16%, 0.95)",
+      workspace:   "#0a0a0a",
+      edge:        "#b8920a",           // golden partial/edge dies
+      die:         "#3d8c3d",           // green good die
+      defect:      "#cc1c1c",           // red defect die
+      grid:        "rgba(55,110,210,0.75)",
+      ring:        "#4a6a99",
+      primary:     "hsl(224 70% 65%)",
+      primarySoft: "hsla(224,70%,65%,0.22)",
+      warn:        "hsl(0 70% 60%)",
+      warnSoft:    "hsla(0,70%,60%,0.22)",
+      labelBg:     "hsla(222,18%,14%,0.95)",
     };
   }
   return {
-    workspace: "hsl(220 18% 96%)",
-    disc: "hsl(220 12% 92%)",
-    defect: "hsl(222 30% 18%)",
-    grid: "rgba(15, 23, 42, 0.08)",
-    ring: "hsl(222 25% 28%)",
-    primary: "hsl(224 70% 48%)",
-    primarySoft: "hsla(224, 70%, 48%, 0.14)",
-    warn: "hsl(0 72% 50%)",
-    warnSoft: "hsla(0, 72%, 50%, 0.14)",
-    labelBg: "rgba(255, 255, 255, 0.95)",
+    workspace:   "#1a1a1a",
+    edge:        "#c8a032",
+    die:         "#5cb85c",
+    defect:      "#cc1c1c",
+    grid:        "rgba(40,90,200,0.65)",
+    ring:        "#5577aa",
+    primary:     "hsl(224 70% 48%)",
+    primarySoft: "hsla(224,70%,48%,0.22)",
+    warn:        "hsl(0 72% 50%)",
+    warnSoft:    "hsla(0,72%,50%,0.22)",
+    labelBg:     "rgba(255,255,255,0.95)",
   };
 }
+
 export function WaferCanvas({
   map,
   tool,
   brushSize,
   showGrid,
-  detection,
-  showOverlay,
   isDark = false,
+  displaySize,
   onCommit,
+  onHoverChange,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const overlayRef = useRef<HTMLCanvasElement>(null);
   const cursorRef = useRef<HTMLCanvasElement>(null);
+  const rafRef     = useRef<number | null>(null);
 
   const [draftMap, setDraftMap] = useState<WaferMap | null>(null);
   const dragStateRef = useRef<{
-    startX: number;
-    startY: number;
+    startX: number; startY: number;
     button: 0 | 2;
-    lastX: number;
-    lastY: number;
+    lastX: number;  lastY: number;
   } | null>(null);
   const [hover, setHover] = useState<{ x: number; y: number } | null>(null);
 
   const renderMap = draftMap ?? map;
+  const colors = getColors(isDark);
 
-  const {
-    workspace: C_WORKSPACE,
-    disc: C_DISC,
-    defect: C_DEFECT,
-    grid: C_GRID,
-    ring: C_RING,
-    primary: C_PRIMARY,
-    primarySoft: C_PRIMARY_SOFT,
-    warn: C_WARN,
-    warnSoft: C_WARN_SOFT,
-    labelBg: C_LABEL_BG,
-  } = getColors(isDark);
-
-  // Draw wafer map
+  // ── Wafer tiles ────────────────────────────────────────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
-    ctx.imageSmoothingEnabled = false;
 
-    const size = GRID_SIZE * TILE_PX;
-    canvas.width = size;
-    canvas.height = size;
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => {
+      const ctx = canvas.getContext("2d")!;
+      ctx.imageSmoothingEnabled = false;
+      canvas.width  = CANVAS_SIZE;
+      canvas.height = CANVAS_SIZE;
 
-    ctx.fillStyle = C_WORKSPACE;
-    ctx.fillRect(0, 0, size, size);
+      const tilePixels = CANVAS_SIZE / displaySize;
+      const { workspace: C_WS, edge: C_EDGE, die: C_DIE, defect: C_DEFECT, grid: C_GRID, ring: C_RING } = colors;
 
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(size / 2, size / 2, size / 2 - 2, 0, Math.PI * 2);
-    ctx.closePath();
-    ctx.clip();
+      // Wafer circle matches the isInside mask projected to canvas space.
+      // isInside uses radius = GRID_SIZE/2 - 0.5 = 31.5 centered at (31.5, 31.5).
+      // In canvas space: radius = 31.5 * (CANVAS_SIZE / GRID_SIZE).
+      const waferR = (GRID_SIZE / 2 - 0.5) * (CANVAS_SIZE / GRID_SIZE);
+      const waferCx = CANVAS_SIZE / 2;
+      const waferCy = CANVAS_SIZE / 2;
 
-    ctx.fillStyle = C_DISC;
-    ctx.fillRect(0, 0, size, size);
+      // No background fill — canvas is transparent outside the clip region.
 
-    ctx.fillStyle = C_DEFECT;
-    for (let y = 0; y < GRID_SIZE; y++) {
-      for (let x = 0; x < GRID_SIZE; x++) {
-        if (!isInside(x, y)) continue;
-        if (renderMap[idx(x, y)]) {
-          ctx.fillRect(x * TILE_PX, y * TILE_PX, TILE_PX, TILE_PX);
+      // Clip to wafer disc
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(waferCx, waferCy, waferR, 0, Math.PI * 2);
+      ctx.clip();
+
+      // Golden edge-cell base fills the clip region; inner dies will overdraw it.
+      ctx.fillStyle = C_EDGE;
+      ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+      // Draw each die using center-of-tile vs source-space circle check.
+      // Checking the tile center (not top-left corner) gives a symmetric boundary.
+      const halfGs = GRID_SIZE / 2;
+      const wR2src = (GRID_SIZE / 2 - 0.5) ** 2;
+      for (let dy = 0; dy < displaySize; dy++) {
+        for (let dx = 0; dx < displaySize; dx++) {
+          // Center of this display tile in source space
+          const scx = (dx + 0.5) / displaySize * GRID_SIZE;
+          const scy = (dy + 0.5) / displaySize * GRID_SIZE;
+          if ((scx - halfGs) ** 2 + (scy - halfGs) ** 2 > wR2src) continue;
+
+          const srcX = Math.floor(dx / displaySize * GRID_SIZE);
+          const srcY = Math.floor(dy / displaySize * GRID_SIZE);
+          ctx.fillStyle = renderMap[idx(srcX, srcY)] ? C_DEFECT : C_DIE;
+          ctx.fillRect(dx * tilePixels, dy * tilePixels, tilePixels, tilePixels);
         }
       }
-    }
 
-    if (showGrid) {
-      ctx.strokeStyle = C_GRID;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      for (let i = 0; i <= GRID_SIZE; i++) {
-        const p = i * TILE_PX + 0.5;
-        ctx.moveTo(p, 0);
-        ctx.lineTo(p, size);
-        ctx.moveTo(0, p);
-        ctx.lineTo(size, p);
+      // Grid lines overlaid on dies (inside clip)
+      if (showGrid) {
+        ctx.strokeStyle = C_GRID;
+        ctx.lineWidth = Math.max(0.5, tilePixels * 0.06);
+        ctx.beginPath();
+        for (let i = 0; i <= displaySize; i++) {
+          const p = i * tilePixels;
+          ctx.moveTo(p, 0);
+          ctx.lineTo(p, CANVAS_SIZE);
+          ctx.moveTo(0, p);
+          ctx.lineTo(CANVAS_SIZE, p);
+        }
+        ctx.stroke();
       }
+
+      ctx.restore();
+
+      // Wafer ring
+      ctx.strokeStyle = C_RING;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(waferCx, waferCy, waferR, 0, Math.PI * 2);
       ctx.stroke();
-    }
 
-    ctx.restore();
+    });
+  }, [renderMap, isDark, displaySize, showGrid]);
 
-    ctx.strokeStyle = C_RING;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(size / 2, size / 2, size / 2 - 2, 0, Math.PI * 2);
-    ctx.stroke();
 
-    // Notch (orientation marker at bottom)
-    ctx.fillStyle = C_WORKSPACE;
-    ctx.strokeStyle = C_RING;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    const notchR = TILE_PX * 1.2;
-    ctx.arc(size / 2, size - 2, notchR, Math.PI, 0, true);
-    ctx.fill();
-    ctx.stroke();
-  }, [renderMap, showGrid, isDark]);
-
-  // Detection overlay
-  useEffect(() => {
-    const canvas = overlayRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
-    const size = GRID_SIZE * TILE_PX;
-    canvas.width = size;
-    canvas.height = size;
-    ctx.clearRect(0, 0, size, size);
-    if (!detection || !showOverlay) return;
-
-    for (const c of detection.clusters) {
-      const stroke = c.color === "magenta" ? C_WARN : C_PRIMARY;
-      const fill = c.color === "magenta" ? C_WARN_SOFT : C_PRIMARY_SOFT;
-      const x = c.x * TILE_PX;
-      const y = c.y * TILE_PX;
-      const w = c.w * TILE_PX;
-      const h = c.h * TILE_PX;
-      ctx.fillStyle = fill;
-      ctx.fillRect(x, y, w, h);
-      ctx.strokeStyle = stroke;
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([4, 3]);
-      ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
-      ctx.setLineDash([]);
-
-      const label = `${c.kind} ${(c.confidence * 100).toFixed(0)}%`;
-      ctx.font = "10px ui-monospace, Menlo, monospace";
-      const tw = ctx.measureText(label).width + 6;
-      const th = 13;
-      const lx = Math.min(size - tw - 2, Math.max(2, x));
-      const ly = Math.max(0, y - th - 2);
-      ctx.fillStyle = C_LABEL_BG;
-      ctx.fillRect(lx, ly, tw, th);
-      ctx.strokeStyle = stroke;
-      ctx.lineWidth = 1;
-      ctx.strokeRect(lx + 0.5, ly + 0.5, tw - 1, th - 1);
-      ctx.fillStyle = stroke;
-      ctx.fillText(label, lx + 3, ly + 9.5);
-    }
-  }, [detection, showOverlay, isDark]);
-
-  // Cursor / brush preview
+  // ── Cursor / brush preview ─────────────────────────────────────────────────
   useEffect(() => {
     const canvas = cursorRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d")!;
-    const size = GRID_SIZE * TILE_PX;
-    canvas.width = size;
-    canvas.height = size;
-    ctx.clearRect(0, 0, size, size);
+    canvas.width  = CANVAS_SIZE;
+    canvas.height = CANVAS_SIZE;
+    ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
     if (!hover) return;
 
+    const { primary: C_P, primarySoft: C_PS } = colors;
+    const scale = CANVAS_SIZE / GRID_SIZE;
     const drag = dragStateRef.current;
     const isDragShape = drag && (tool === "line" || tool === "rect" || tool === "circle");
 
-    ctx.strokeStyle = C_PRIMARY;
-    ctx.fillStyle = C_PRIMARY_SOFT;
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = C_P;
+    ctx.fillStyle   = C_PS;
+    ctx.lineWidth   = 1;
 
     if (isDragShape) {
-      const x0 = drag.startX;
-      const y0 = drag.startY;
-      const x1 = hover.x;
-      const y1 = hover.y;
+      const x0 = drag.startX * scale, y0 = drag.startY * scale;
+      const x1 = hover.x    * scale, y1 = hover.y    * scale;
       if (tool === "rect") {
-        const xMin = Math.min(x0, x1) * TILE_PX;
-        const yMin = Math.min(y0, y1) * TILE_PX;
-        const w = (Math.abs(x1 - x0) + 1) * TILE_PX;
-        const h = (Math.abs(y1 - y0) + 1) * TILE_PX;
+        const xMin = Math.min(x0, x1), yMin = Math.min(y0, y1);
+        const w = Math.abs(x1 - x0) + scale, h = Math.abs(y1 - y0) + scale;
         ctx.fillRect(xMin, yMin, w, h);
         ctx.strokeRect(xMin + 0.5, yMin + 0.5, w - 1, h - 1);
       } else if (tool === "circle") {
-        const cx = ((x0 + x1) / 2 + 0.5) * TILE_PX;
-        const cy = ((y0 + y1) / 2 + 0.5) * TILE_PX;
-        const rx = ((Math.abs(x1 - x0) + 1) / 2) * TILE_PX;
-        const ry = ((Math.abs(y1 - y0) + 1) / 2) * TILE_PX;
+        const cx = (x0 + x1 + scale) / 2, cy = (y0 + y1 + scale) / 2;
+        const rx = (Math.abs(x1 - x0) + scale) / 2, ry = (Math.abs(y1 - y0) + scale) / 2;
         ctx.beginPath();
         ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
       } else if (tool === "line") {
         ctx.beginPath();
-        ctx.moveTo((x0 + 0.5) * TILE_PX, (y0 + 0.5) * TILE_PX);
-        ctx.lineTo((x1 + 0.5) * TILE_PX, (y1 + 0.5) * TILE_PX);
-        ctx.lineWidth = Math.max(1, brushSize) * (TILE_PX / 2);
-        ctx.strokeStyle = C_PRIMARY_SOFT;
+        ctx.moveTo(x0 + scale / 2, y0 + scale / 2);
+        ctx.lineTo(x1 + scale / 2, y1 + scale / 2);
+        ctx.lineWidth   = Math.max(1, brushSize) * (scale / 2);
+        ctx.strokeStyle = C_PS;
         ctx.stroke();
       }
       return;
     }
 
     const sz = tool === "pencil" || tool === "fill" ? 1 : brushSize;
-    const wh = sz * TILE_PX;
+    const wh = sz * scale;
     ctx.beginPath();
     if (sz <= 1) {
-      ctx.rect(hover.x * TILE_PX + 0.5, hover.y * TILE_PX + 0.5, TILE_PX - 1, TILE_PX - 1);
+      ctx.rect(hover.x * scale + 0.5, hover.y * scale + 0.5, scale - 1, scale - 1);
     } else {
-      ctx.arc(
-        (hover.x + 0.5) * TILE_PX,
-        (hover.y + 0.5) * TILE_PX,
-        wh / 2,
-        0,
-        Math.PI * 2,
-      );
+      ctx.arc((hover.x + 0.5) * scale, (hover.y + 0.5) * scale, wh / 2, 0, Math.PI * 2);
     }
     ctx.fill();
     ctx.stroke();
   }, [hover, tool, brushSize, isDark]);
 
+  // ── Pointer helpers ────────────────────────────────────────────────────────
   const eventToCell = (e: React.PointerEvent) => {
-    const canvas = canvasRef.current!;
-    const rect = canvas.getBoundingClientRect();
-    const px = ((e.clientX - rect.left) / rect.width) * GRID_SIZE;
-    const py = ((e.clientY - rect.top) / rect.height) * GRID_SIZE;
-    return { x: Math.floor(px), y: Math.floor(py) };
+    const rect = canvasRef.current!.getBoundingClientRect();
+    return {
+      x: Math.floor(((e.clientX - rect.left)  / rect.width)  * GRID_SIZE),
+      y: Math.floor(((e.clientY - rect.top)   / rect.height) * GRID_SIZE),
+    };
   };
 
   const onPointerDown = useCallback(
@@ -288,37 +238,11 @@ export function WaferCanvas({
       const value: 0 | 1 = e.button === 2 || tool === "eraser" ? 0 : 1;
       const next = new Uint8Array(map);
 
-      if (tool === "fill") {
-        floodFill(next, x, y, value);
-        onCommit(next);
-        return;
-      }
+      if (tool === "fill") { floodFill(next, x, y, value); onCommit(next); return; }
+      if (tool === "pencil") paintTile(next, x, y, value);
+      else if (tool === "brush" || tool === "eraser") paintBrush(next, x, y, brushSize, value);
 
-      if (tool === "pencil") {
-        paintTile(next, x, y, value);
-      } else if (tool === "brush" || tool === "eraser") {
-        paintBrush(next, x, y, brushSize, value);
-      }
-
-      if (tool === "line" || tool === "rect" || tool === "circle") {
-        dragStateRef.current = {
-          startX: x,
-          startY: y,
-          button: e.button === 2 ? 2 : 0,
-          lastX: x,
-          lastY: y,
-        };
-        setDraftMap(next);
-        return;
-      }
-
-      dragStateRef.current = {
-        startX: x,
-        startY: y,
-        button: e.button === 2 ? 2 : 0,
-        lastX: x,
-        lastY: y,
-      };
+      dragStateRef.current = { startX: x, startY: y, button: e.button === 2 ? 2 : 0, lastX: x, lastY: y };
       setDraftMap(next);
     },
     [map, tool, brushSize, onCommit],
@@ -328,30 +252,25 @@ export function WaferCanvas({
     (e: React.PointerEvent) => {
       const { x, y } = eventToCell(e);
       setHover({ x, y });
+      onHoverChange?.({ x, y });
       const drag = dragStateRef.current;
       if (!drag) return;
       const value: 0 | 1 = drag.button === 2 || tool === "eraser" ? 0 : 1;
 
       if (tool === "line" || tool === "rect" || tool === "circle") {
         const preview = new Uint8Array(map);
-        if (tool === "line")
-          paintLine(preview, drag.startX, drag.startY, x, y, brushSize, value);
-        else if (tool === "rect")
-          paintRect(preview, drag.startX, drag.startY, x, y, value);
-        else if (tool === "circle")
-          paintCircle(preview, drag.startX, drag.startY, x, y, value);
+        if (tool === "line")   paintLine(preview, drag.startX, drag.startY, x, y, brushSize, value);
+        if (tool === "rect")   paintRect(preview, drag.startX, drag.startY, x, y, value);
+        if (tool === "circle") paintCircle(preview, drag.startX, drag.startY, x, y, value);
         setDraftMap(preview);
-        drag.lastX = x;
-        drag.lastY = y;
+        drag.lastX = x; drag.lastY = y;
         return;
       }
 
       if (tool === "pencil" || tool === "brush" || tool === "eraser") {
         const next = draftMap ? new Uint8Array(draftMap) : new Uint8Array(map);
-        const size = tool === "pencil" ? 1 : brushSize;
-        paintLine(next, drag.lastX, drag.lastY, x, y, size, value);
-        drag.lastX = x;
-        drag.lastY = y;
+        paintLine(next, drag.lastX, drag.lastY, x, y, tool === "pencil" ? 1 : brushSize, value);
+        drag.lastX = x; drag.lastY = y;
         setDraftMap(next);
       }
     },
@@ -359,64 +278,35 @@ export function WaferCanvas({
   );
 
   const finishDrag = useCallback(() => {
-    if (!dragStateRef.current) return;
     dragStateRef.current = null;
-    if (draftMap) {
-      onCommit(draftMap);
-      setDraftMap(null);
-    }
+    if (draftMap) { onCommit(draftMap); setDraftMap(null); }
   }, [draftMap, onCommit]);
 
   const onPointerUp = useCallback(
     (e: React.PointerEvent) => {
-      try {
-        (e.target as Element).releasePointerCapture(e.pointerId);
-      } catch {
-        /* noop */
-      }
+      try { (e.target as Element).releasePointerCapture(e.pointerId); } catch { /* noop */ }
       finishDrag();
     },
     [finishDrag],
   );
 
-  const onPointerLeave = useCallback(() => {
-    setHover(null);
-  }, []);
-
   return (
-    <div className="relative aspect-square w-full max-w-[min(78vh,820px)] select-none">
-      <div className="absolute inset-0 rounded-full bg-card shadow-[0_8px_30px_-12px_rgba(15,23,42,0.18)] ring-1 ring-border" />
+    <div className="relative aspect-square w-full select-none">
       <canvas
         ref={canvasRef}
-        className={cn("pixelated absolute inset-0 h-full w-full rounded-full")}
+        className={cn("pixelated absolute inset-0 h-full w-full")}
         onContextMenu={(e) => e.preventDefault()}
       />
       <canvas
-        ref={overlayRef}
-        className="pixelated pointer-events-none absolute inset-0 h-full w-full rounded-full"
-      />
-      <canvas
         ref={cursorRef}
-        className="pixelated absolute inset-0 h-full w-full cursor-crosshair rounded-full"
+        className="pixelated absolute inset-0 h-full w-full cursor-crosshair"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
-        onPointerLeave={onPointerLeave}
+        onPointerLeave={() => { setHover(null); onHoverChange?.(null); }}
         onContextMenu={(e) => e.preventDefault()}
       />
-      <div className="font-mono-stat pointer-events-none absolute bottom-3 left-3 rounded border border-border bg-card/90 px-2 py-1 text-[10px] text-muted-foreground backdrop-blur">
-        {hover ? (
-          <>
-            x:{String(hover.x).padStart(2, "0")} · y:{String(hover.y).padStart(2, "0")}
-          </>
-        ) : (
-          <>idle</>
-        )}
-      </div>
-      <div className="font-mono-stat pointer-events-none absolute bottom-3 right-3 rounded border border-border bg-card/90 px-2 py-1 text-[10px] text-foreground backdrop-blur">
-        {GRID_SIZE}×{GRID_SIZE}
-      </div>
     </div>
   );
 }
