@@ -174,6 +174,23 @@ const Index = () => {
   }, [map]);
 
 
+  useEffect(() => {
+    if (countDefects(map) === 0) return;
+    const timer = setTimeout(async () => {
+      setIsDetecting(true);
+      try {
+        const { result, source } = await runDetection(map);
+        setDetection(result);
+        setDetectionSource(source);
+      } catch {
+        // silent — user can still trigger manually via button
+      } finally {
+        setIsDetecting(false);
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [map]);
+
   const handleExport = useCallback(() => {
     const url = exportToPng(map);
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
