@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Cpu, Microscope, Moon, Play, Sun } from "lucide-react";
+import { Cpu, Moon, Play, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Toolbar } from "@/components/Toolbar";
 import { WaferCanvas } from "@/components/WaferCanvas";
@@ -200,16 +200,36 @@ const Index = () => {
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-gradient-to-r from-card via-primary/5 to-accent/10 px-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-gradient-to-br from-primary to-accent text-primary-foreground shadow-sm">
-            <Microscope className="h-4 w-4" />
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center">
+            <svg viewBox="0 0 32 32" width="32" height="32" fill="none">
+              <defs>
+                <clipPath id="hdr-wafer-clip">
+                  <circle cx="16" cy="16" r="14.5" />
+                </clipPath>
+              </defs>
+              {/* edge ring fill */}
+              <circle cx="16" cy="16" r="14.5" fill="#d97706" />
+              {/* die grid clipped to wafer */}
+              <g clipPath="url(#hdr-wafer-clip)">
+                {Array.from({ length: 8 }, (_, row) =>
+                  Array.from({ length: 8 }, (_, col) => {
+                    const x = col * 4, y = row * 4;
+                    const cx = x + 2, cy = y + 2;
+                    const dx = cx - 16, dy = cy - 16;
+                    if (dx * dx + dy * dy > 13.5 * 13.5) return null;
+                    const defect = (row === 2 && col === 4) || (row === 5 && col === 2) || (row === 4 && col === 5);
+                    return <rect key={`${row}-${col}`} x={x + 0.3} y={y + 0.3} width="3.4" height="3.4" fill={defect ? "#dc2626" : "#22c55e"} />;
+                  })
+                )}
+              </g>
+              {/* wafer ring */}
+              <circle cx="16" cy="16" r="14.5" stroke="#5577aa" strokeWidth="1.2" />
+            </svg>
           </div>
           <div>
             <h1 className="text-sm font-semibold text-foreground">
               Silicon Wafer Defect Analysis
             </h1>
-            <p className="text-[11px] text-muted-foreground">
-              CMPE 257&nbsp;
-            </p>
           </div>
         </div>
 
