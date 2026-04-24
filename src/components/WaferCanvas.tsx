@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   GRID_SIZE,
   isInside,
-  type Tool,
   type WaferMap,
   floodFill,
   idx,
@@ -10,13 +9,16 @@ import {
   paintCircle,
   paintLine,
   paintRect,
-  paintTile,
 } from "@/lib/wafer";
 import { cn } from "@/lib/utils";
 
+export type DrawTool = "brush" | "line" | "rect" | "circle" | "fill";
+
 interface Props {
   map: WaferMap;
-  tool: Tool;
+  paintBase: WaferMap;
+  drawTool: DrawTool;
+  isErase: boolean;
   brushSize: number;
   showGrid: boolean;
   isDark?: boolean;
@@ -60,7 +62,9 @@ function getColors(isDark: boolean) {
 
 export function WaferCanvas({
   map,
-  tool,
+  paintBase,
+  drawTool,
+  isErase,
   brushSize,
   showGrid,
   isDark = false,
@@ -170,7 +174,7 @@ export function WaferCanvas({
     const { primary: C_P, primarySoft: C_PS } = colors;
     const scale = CANVAS_SIZE / GRID_SIZE;
     const drag = dragStateRef.current;
-    const isDragShape = drag && (tool === "line" || tool === "rect" || tool === "circle");
+    const isDragShape = drag && (drawTool === "line" || drawTool === "rect" || drawTool === "circle");
 
     ctx.strokeStyle = C_P;
     ctx.fillStyle   = C_PS;
@@ -179,19 +183,19 @@ export function WaferCanvas({
     if (isDragShape) {
       const x0 = drag.startX * scale, y0 = drag.startY * scale;
       const x1 = hover.x    * scale, y1 = hover.y    * scale;
-      if (tool === "rect") {
+      if (drawTool === "rect") {
         const xMin = Math.min(x0, x1), yMin = Math.min(y0, y1);
         const w = Math.abs(x1 - x0) + scale, h = Math.abs(y1 - y0) + scale;
         ctx.fillRect(xMin, yMin, w, h);
         ctx.strokeRect(xMin + 0.5, yMin + 0.5, w - 1, h - 1);
-      } else if (tool === "circle") {
+      } else if (drawTool === "circle") {
         const cx = (x0 + x1 + scale) / 2, cy = (y0 + y1 + scale) / 2;
         const rx = (Math.abs(x1 - x0) + scale) / 2, ry = (Math.abs(y1 - y0) + scale) / 2;
         ctx.beginPath();
         ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
-      } else if (tool === "line") {
+      } else if (drawTool === "line") {
         ctx.beginPath();
         ctx.moveTo(x0 + scale / 2, y0 + scale / 2);
         ctx.lineTo(x1 + scale / 2, y1 + scale / 2);
@@ -202,7 +206,7 @@ export function WaferCanvas({
       return;
     }
 
-    const sz = tool === "pencil" || tool === "fill" ? 1 : brushSize;
+    const sz = drawTool === "fill" ? 1 : brushSize;
     const wh = sz * scale;
     ctx.beginPath();
     if (sz <= 1) {
@@ -212,7 +216,7 @@ export function WaferCanvas({
     }
     ctx.fill();
     ctx.stroke();
-  }, [hover, tool, brushSize, isDark]);
+  }, [hover, drawTool, brushSize, isDark]);
 
   // ── Pointer helpers ────────────────────────────────────────────────────────
   const eventToCell = (e: React.PointerEvent) => {
@@ -229,17 +233,16 @@ export function WaferCanvas({
       e.preventDefault();
       (e.target as Element).setPointerCapture(e.pointerId);
       const { x, y } = eventToCell(e);
-      const value: 0 | 1 = e.button === 2 || tool === "eraser" ? 0 : 1;
-      const next = new Uint8Array(map);
+      const value: 0 | 1 = isErase || e.button === 2 ? 0 : 1;
+      const next = new Uint8Array(paintBase);
 
-      if (tool === "fill") { floodFill(next, x, y, value); onCommit(next); return; }
-      if (tool === "pencil") paintTile(next, x, y, value);
-      else if (tool === "brush" || tool === "eraser") paintBrush(next, x, y, brushSize, value);
+      if (drawTool === "fill") { floodFill(next, x, y, value); onCommit(next); return; }
+      paintBrush(next, x, y, brushSize, value);
 
       dragStateRef.current = { startX: x, startY: y, button: e.button === 2 ? 2 : 0, lastX: x, lastY: y };
       setDraftMap(next);
     },
-    [map, tool, brushSize, onCommit],
+    [paintBase, drawTool, isErase, brushSize, onCommit],
   );
 
   const onPointerMove = useCallback(
@@ -248,26 +251,25 @@ export function WaferCanvas({
       setHover({ x, y });
       const drag = dragStateRef.current;
       if (!drag) return;
-      const value: 0 | 1 = drag.button === 2 || tool === "eraser" ? 0 : 1;
+      const value: 0 | 1 = isErase || drag.button === 2 ? 0 : 1;
 
-      if (tool === "line" || tool === "rect" || tool === "circle") {
-        const preview = new Uint8Array(map);
-        if (tool === "line")   paintLine(preview, drag.startX, drag.startY, x, y, brushSize, value);
-        if (tool === "rect")   paintRect(preview, drag.startX, drag.startY, x, y, value);
-        if (tool === "circle") paintCircle(preview, drag.startX, drag.startY, x, y, value);
+      if (drawTool === "line" || drawTool === "rect" || drawTool === "circle") {
+        const preview = new Uint8Array(paintBase);
+        if (drawTool === "line")   paintLine(preview, drag.startX, drag.startY, x, y, brushSize, value);
+        if (drawTool === "rect")   paintRect(preview, drag.startX, drag.startY, x, y, value);
+        if (drawTool === "circle") paintCircle(preview, drag.startX, drag.startY, x, y, value);
         setDraftMap(preview);
         drag.lastX = x; drag.lastY = y;
         return;
       }
 
-      if (tool === "pencil" || tool === "brush" || tool === "eraser") {
-        const next = draftMap ? new Uint8Array(draftMap) : new Uint8Array(map);
-        paintLine(next, drag.lastX, drag.lastY, x, y, tool === "pencil" ? 1 : brushSize, value);
-        drag.lastX = x; drag.lastY = y;
-        setDraftMap(next);
-      }
+      // brush — freehand
+      const next = draftMap ? new Uint8Array(draftMap) : new Uint8Array(paintBase);
+      paintLine(next, drag.lastX, drag.lastY, x, y, brushSize, value);
+      drag.lastX = x; drag.lastY = y;
+      setDraftMap(next);
     },
-    [map, draftMap, tool, brushSize],
+    [paintBase, draftMap, drawTool, isErase, brushSize],
   );
 
   const finishDrag = useCallback(() => {

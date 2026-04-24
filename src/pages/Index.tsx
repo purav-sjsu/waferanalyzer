@@ -11,20 +11,36 @@ import {
   isInside,
   countDefects,
   createEmptyMap,
+  generateNoiseSeed,
   downloadDataUrl,
   exportToPng,
   type DetectionResult,
-  type Tool,
   type WaferMap,
 } from "@/lib/wafer";
+import { type DrawTool } from "@/components/WaferCanvas";
 import { runDetection, type MlSource } from "@/lib/mlClient";
 import { preloadModel } from "@/lib/onnxClient";
 
 const HISTORY_LIMIT = 50;
 
+function createSeedMap(): WaferMap {
+  const m = new Uint8Array(GRID_SIZE * GRID_SIZE);
+  for (let y = 0; y < GRID_SIZE; y++)
+    for (let x = 0; x < GRID_SIZE; x++)
+      if (isInside(x, y) && Math.random() < 0.03) m[y * GRID_SIZE + x] = 1;
+  return m;
+}
+
 const Index = () => {
-  const [map, setMap] = useState<WaferMap>(() => createEmptyMap());
-  const [tool, setTool] = useState<Tool>("brush");
+  // userMap = what the user has painted (no noise). map = userMap merged with noise layer.
+  const initialMap = createSeedMap();
+  const userMapRef = useRef<WaferMap>(initialMap);
+  const [map, setMap] = useState<WaferMap>(initialMap);
+  const [noiseAmount, setNoiseAmount] = useState(0); // 0–50 integer percent
+  const noiseSeed = useRef<number[]>(generateNoiseSeed());
+
+  const [drawTool, setDrawTool] = useState<DrawTool>("brush");
+  const [isErase, setIsErase] = useState(false);
   const [brushSize, setBrushSize] = useState(3);
   const showGrid = true;
   const [detection, setDetection] = useState<DetectionResult | null>(null);
@@ -40,6 +56,14 @@ const Index = () => {
 
   const undoStack = useRef<WaferMap[]>([]);
   const redoStack = useRef<WaferMap[]>([]);
+
+  const applyNoise = useCallback((base: WaferMap, pct: number): WaferMap => {
+    if (pct === 0) return base;
+    const merged = new Uint8Array(base);
+    const count = Math.floor(noiseSeed.current.length * pct / 100);
+    for (let i = 0; i < count; i++) merged[noiseSeed.current[i]] = 1;
+    return merged;
+  }, []);
 
   // Display-space metrics keyed to isInside — the same gate paintTile uses —
   // so activeDies counts only tiles that can actually be painted, making 100% reachable.
@@ -67,43 +91,51 @@ const Index = () => {
   }, [map, outputSize]);
 
   const commit = useCallback((next: WaferMap) => {
-    setMap((prev) => {
-      undoStack.current.push(prev);
-      if (undoStack.current.length > HISTORY_LIMIT) undoStack.current.shift();
-      redoStack.current = [];
-      return next;
-    });
+    undoStack.current.push(userMapRef.current);
+    if (undoStack.current.length > HISTORY_LIMIT) undoStack.current.shift();
+    redoStack.current = [];
+    userMapRef.current = next;
+    setMap(applyNoise(next, noiseAmount));
     setDetection(null);
     setDetectionSource(null);
-  }, []);
+  }, [noiseAmount, applyNoise]);
 
   const handleUndo = useCallback(() => {
     const prev = undoStack.current.pop();
     if (!prev) return;
-    setMap((current) => {
-      redoStack.current.push(current);
-      return prev;
-    });
+    redoStack.current.push(userMapRef.current);
+    userMapRef.current = prev;
+    setMap(applyNoise(prev, noiseAmount));
     setDetection(null);
     setDetectionSource(null);
-  }, []);
+  }, [noiseAmount, applyNoise]);
 
   const handleRedo = useCallback(() => {
     const next = redoStack.current.pop();
     if (!next) return;
-    setMap((current) => {
-      undoStack.current.push(current);
-      return next;
-    });
+    undoStack.current.push(userMapRef.current);
+    userMapRef.current = next;
+    setMap(applyNoise(next, noiseAmount));
+    setDetection(null);
+    setDetectionSource(null);
+  }, [noiseAmount, applyNoise]);
+
+  const handleClearAll = useCallback(() => {
+    setNoiseAmount(0);
+    userMapRef.current = createEmptyMap();
+    setMap(createEmptyMap());
+    undoStack.current = [];
+    redoStack.current = [];
     setDetection(null);
     setDetectionSource(null);
   }, []);
 
-  const handleClearAll = useCallback(() => {
-    if (countDefects(map) === 0) return;
-    if (!confirm("Clear the entire wafer map?")) return;
-    commit(createEmptyMap());
-  }, [map, commit]);
+  const handleNoiseChange = useCallback((pct: number) => {
+    setNoiseAmount(pct);
+    setMap(applyNoise(userMapRef.current, pct));
+    setDetection(null);
+    setDetectionSource(null);
+  }, [applyNoise]);
 
   const handleDetect = useCallback(async () => {
     if (countDefects(map) === 0) {
@@ -142,6 +174,7 @@ const Index = () => {
     }
   }, [map]);
 
+
   const handleExport = useCallback(() => {
     const url = exportToPng(map);
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
@@ -178,19 +211,12 @@ const Index = () => {
         handleRedo();
         return;
       }
-      const map: Record<string, Tool> = {
-        p: "pencil",
-        e: "eraser",
-        b: "brush",
-        l: "line",
-        r: "rect",
-        c: "circle",
-        f: "fill",
+      if (e.key.toLowerCase() === "e") { setIsErase((v) => !v); return; }
+      const shapeMap: Record<string, DrawTool> = {
+        b: "brush", l: "line", r: "rect", c: "circle", f: "fill",
       };
-      const t = map[e.key.toLowerCase()];
-      if (t) {
-        setTool(t);
-      }
+      const t = shapeMap[e.key.toLowerCase()];
+      if (t) setDrawTool(t);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -264,15 +290,19 @@ const Index = () => {
 
       <div className="flex flex-1 overflow-hidden">
         <Toolbar
-          tool={tool}
+          drawTool={drawTool}
+          isErase={isErase}
           brushSize={brushSize}
-          onToolChange={setTool}
+          onDrawToolChange={setDrawTool}
+          onEraseChange={setIsErase}
           onBrushSize={setBrushSize}
           onClearAll={handleClearAll}
           onUndo={handleUndo}
           onRedo={handleRedo}
           canUndo={undoStack.current.length > 0}
           canRedo={redoStack.current.length > 0}
+          noiseAmount={noiseAmount}
+          onNoiseChange={handleNoiseChange}
         />
 
         <main className="relative flex flex-1 items-center justify-center overflow-hidden bg-background p-6">
@@ -282,7 +312,9 @@ const Index = () => {
           >
           <WaferCanvas
             map={map}
-            tool={tool}
+            paintBase={userMapRef.current}
+            drawTool={drawTool}
+            isErase={isErase}
             brushSize={brushSize}
             showGrid={showGrid}
             isDark={isDark}
@@ -317,7 +349,15 @@ const Index = () => {
           activeDies={activeDies}
           displaySize={outputSize}
           isDark={isDark}
-          onReset={() => commit(createEmptyMap())}
+          onReset={() => {
+            setNoiseAmount(0);
+            userMapRef.current = createEmptyMap();
+            setMap(createEmptyMap());
+            undoStack.current = [];
+            redoStack.current = [];
+            setDetection(null);
+            setDetectionSource(null);
+          }}
         />
       </div>
     </div>

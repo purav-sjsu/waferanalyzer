@@ -81,6 +81,20 @@ export function activeTileCount(): number {
   return n;
 }
 
+// Returns a fixed-seed shuffled array of all inside-cell indices.
+// Slicing the first N% gives a deterministic, monotonic noise set.
+export function generateNoiseSeed(): number[] {
+  const cells: number[] = [];
+  for (let i = 0; i < _maskCache.length; i++) if (_maskCache[i]) cells.push(i);
+  let s = 0x12345678;
+  const rand = () => { s = Math.imul(s, 1664525) + 1013904223 | 0; return (s >>> 0) / 4294967296; };
+  for (let i = cells.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [cells[i], cells[j]] = [cells[j], cells[i]];
+  }
+  return cells;
+}
+
 export function countDefects(map: WaferMap): number {
   let n = 0;
   for (let i = 0; i < map.length; i++) if (map[i]) n++;
